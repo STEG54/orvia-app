@@ -88,7 +88,7 @@ $r = c('logement_save', ['id' => $lid, 'nom' => 'Villa Test', 'ville' => 'Marrak
 t('lien Google Maps raccourci : explication donnée', $r['code'] === 400 && str_contains($r['json']['error'] ?? '', 'adresse complète'), $r['body']);
 $r = http('conciergerie_api.php?action=logement_photo', ['photo' => jpeg()], true); $phe = (string)($r['json']['photo'] ?? ''); t('photo d\'étape enregistrée', $phe !== '', $r['body']);
 $r = c('logement_save', ['id' => $lid, 'nom' => 'Villa Test', 'ville' => 'Marrakech', 'adresse' => 'Route de Fès', 'proprietaire_id' => $pid, 'acces' => 'Boîte à clés à gauche du portail', 'code' => '4719', 'checklist' => [['piece' => 'Chambre', 'photos' => 1], ['piece' => 'Cuisine', 'photos' => 1]],
-  'position' => 'https://www.google.com/maps/place/Villa/@31.6295,-7.9811,17z/data=!3m1', 'livret' => ['repere' => 'Porte verte après la mosquée', 'wifi_nom' => 'VillaTest', 'wifi_mdp' => 'secret-wifi-99', 'etapes' => [['texte' => 'La porte', 'photo' => $phe], ['texte' => '', 'photo' => '']]]]);
+  'actif' => true, 'position' => 'https://www.google.com/maps/place/Villa/@31.6295,-7.9811,17z/data=!3m1', 'livret' => ['repere' => 'Porte verte après la mosquée', 'wifi_nom' => 'VillaTest', 'wifi_mdp' => 'secret-wifi-99', 'etapes' => [['texte' => 'La porte', 'photo' => $phe], ['texte' => '', 'photo' => '']]]]);
 t('position lue dans le lien Google Maps', ($r['json']['ok'] ?? false) === true, $r['body']);
 $r = c('logement_get', null, "id=$lid"); $LG = $r['json']['logement'] ?? [];
 t('position fixée et livret relu', (float)($LG['lat'] ?? 0) === 31.6295 && ($LG['pos_fixe'] ?? 0) === 1 && count($LG['livret']['etapes'] ?? []) === 1 && ($LG['livret']['wifi_mdp'] ?? '') === 'secret-wifi-99', json_encode($LG));
