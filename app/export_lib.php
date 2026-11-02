@@ -92,7 +92,7 @@ function exp_agence(): array {
   $z->addFromString('LISEZMOI.txt', "Export complet de " . AG_NOM . " (Amaya " . AMAYA_VERSION . "), le " . date('d/m/Y à H:i') . ".\n\n"
     . "base/base.sql.gz : la base complète (MySQL/MariaDB). Les n° de sécurité sociale et IBAN y restent chiffrés ; leur version en clair est dans base/fiches_en_clair.csv.\n"
     . "documents/ : pièces d'identité, CV, contrats signés, justificatifs, déchiffrés ($nb fichiers au total avec les photos).\nfichiers/ : photos, logos et autres fichiers de l'agence.\n\n"
-    . "Tout le contenu est chiffré (AES-256) : ouvrez-le avec 7-Zip ou WinRAR et le mot de passe affiché une seule fois dans Amaya.\n");
+    . "Tout le contenu est chiffré (AES-256) : ouvrez-le avec 7-Zip ou WinRAR et le mot de passe affiché une seule fois dans " . PRODUIT_NOM . ".\n");
   $ok = $z->close(); @unlink($gzf); if (!$ok) throw new RuntimeException('Écriture du fichier d\'export impossible (espace disque ?).');
   @chmod($f, 0600); journal('export', 'export complet de l\'agence (' . $nb . ' fichiers)');
   return [$f, 'Export_' . exp_nom(AG_COURT) . '_' . date('Y-m-d') . '.zip', $mdp];

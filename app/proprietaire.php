@@ -32,9 +32,12 @@ th{font-weight:400;font-size:.7rem;letter-spacing:.2em;text-transform:uppercase;
 .btn.ghost{background:transparent;color:var(--ink)}
 .mission{border-top:1px solid var(--line);padding:14px 0}
 .mission:first-of-type{border-top:0}
+.demo-ruban{position:fixed;left:50%;transform:translateX(-50%);bottom:12px;z-index:150;display:flex;align-items:center;gap:4px;flex-wrap:wrap;justify-content:center;background:#111;color:#fff;font-size:12px;padding:5px 6px 5px 12px;max-width:calc(100% - 16px)}
+.demo-ruban .dr-t{margin-right:4px;opacity:.75}.demo-ruban a,.demo-ruban b{color:#fff;text-decoration:none;padding:6px 10px;white-space:nowrap;font-weight:500}.demo-ruban b{background:#444}
 </style>
 </head>
 <body>
+<?= demo_actif() ? demo_ruban() : '' ?>
 <div class="wrap"><header><span class="brand" id="ag"><?= h(AG_COURT) ?></span><span class="label">Espace propriétaire</span></header><main id="v"><p class="muted">Chargement…</p></main></div>
 <script>
 const tok = location.hash.slice(1);
@@ -59,6 +62,9 @@ async function load(){
     ${aValider.length ? `<section><h2>Dépenses à valider</h2>${aValider.map(i => `<div class="mission"><b>${esc(nomL(i.logement_id))}</b> · ${esc(fd(i.created_at))}<div>${esc(i.description)}</div>
       ${i.cout != null ? `<div>Montant : <b>${eur(i.cout)}</b></div>` : ""}${i.photo_url ? `<div class="ph"><img src="${esc(i.photo_url)}" alt="Photo du problème"></div>` : ""}
       <div style="display:flex;gap:8px;margin-top:10px"><button class="btn" data-ok="${i.id}">J'accepte</button><button class="btn ghost" data-no="${i.id}">Je refuse</button></div></div>`).join("")}</section>` : ""}
+    ${(D.notes || []).length ? `<section><h2>Ce qu'en disent les voyageurs</h2><div class="tw"><table><thead><tr><th>Logement</th><th>Propreté</th><th>Logement</th><th>Accueil</th><th>Avis</th></tr></thead><tbody>
+      ${D.notes.map(n => `<tr><td>${esc(nomL(n.logement_id))}</td><td>${n.proprete ?? "–"}/5</td><td>${n.logement ?? "–"}/5</td><td>${n.accueil ?? "–"}/5</td><td>${+n.n}</td></tr>`).join("")}</tbody></table></div>
+      ${(D.commentaires || []).map(c => `<p style="margin:12px 0 0"><span class="muted">${esc(fd(c.created_at))} · ${esc(nomL(c.logement_id))}</span><br>« ${esc(c.commentaire)} »</p>`).join("")}<p class="muted" style="font-size:.85rem">Avis recueillis auprès des voyageurs à leur arrivée et après leur départ, sur les six derniers mois.</p></section>` : ""}
     <section><h2>Séjours</h2><div class="tw"><table><thead><tr><th>Logement</th><th>Arrivée</th><th>Départ</th><th>Voyageurs</th><th>Canal</th></tr></thead><tbody>
       ${D.reservations.map(r => `<tr><td>${esc(nomL(r.logement_id))}</td><td>${esc(fd(r.arrivee))}</td><td>${esc(fd(r.depart))}</td><td>${+r.nb}</td><td>${esc(SRC[r.source] || r.source)}</td></tr>`).join("") || `<tr><td colspan="5" class="muted">Aucun séjour sur la période.</td></tr>`}</tbody></table></div></section>
     <section><h2>Interventions</h2>${D.missions.map(m => `<div class="mission"><b>${esc(nomL(m.logement_id))}</b> · ${m.type === "menage" ? "Ménage et contrôle" : m.type === "maintenance" ? "Maintenance" : "Contrôle"} · ${esc(fd(m.date))}

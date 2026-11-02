@@ -37,6 +37,11 @@ input:focus,select:focus{outline:1px solid var(--ink);border-color:var(--ink)}
 .secure{font-size:.82rem;color:var(--soft);border-top:1px solid var(--line);padding-top:14px}
 .secure b{color:var(--ink);font-weight:500}
 [hidden]{display:none!important}
+.stars{display:flex;gap:6px}.stars button{border:1px solid var(--line);background:#fff;font-size:1.6rem;line-height:1;padding:6px 10px;color:#c9c5bd;cursor:pointer}.stars button.on{color:var(--ink)}
+.srvl{display:grid;grid-template-columns:1fr auto 70px;gap:10px;align-items:center;border-top:1px solid var(--line);padding-top:10px}.srvp{white-space:nowrap}
+textarea{font:inherit;padding:12px;border:1px solid var(--line);width:100%}
+.etape{margin:0;display:grid;gap:6px}.etape img{width:100%;max-height:340px;object-fit:cover;display:block}.secret{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:baseline;border:1px solid var(--line);padding:12px}.secret span{color:var(--soft);font-size:.85rem}.secret b{font-size:1.25rem;letter-spacing:.06em}
+#okbar{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:12px 16px;max-width:92%;z-index:9}#okbar.bad{background:var(--bad)}
 </style>
 </head>
 <body>
@@ -68,6 +73,61 @@ const T = {
    secu:"<b>المعطيات ديالك محمية.</b> مشفّرة، عمرها ما كاتتصيفط فالواتساب، ما كاتّشافش غير إلا كانت ضرورة، وكاتتمسح أوتوماتيكيا فآخر الأجل القانوني. تصويرة الوثيقة عمرها ما كاتبان للفريق.",
    lien:"هاد الرابط ما بقاش صالح. تواصل مع المضيف ديالك.",choisir:"اختار"}
 };
+const T2 = {
+ fr:{arrTitre:"Votre arrivée",mode:"Vous arrivez en",avion:"Avion",voiture:"Voiture",train:"Train",autre:"Autre",vol:"Numéro de vol",heure:"Heure d'arrivée prévue",wa:"Votre numéro WhatsApp (avec l'indicatif)",enreg:"Enregistrer",enregOk:"C'est noté, merci.",
+   srvTitre:"À votre arrivée",srvIntro:"Nous pouvons tout préparer avant votre arrivée.",commander:"Commander",commandeOk:"C'est commandé : tout sera prêt à votre arrivée.",dejaCmd:"Déjà commandé",paiement:"Réglé selon les modalités indiquées par votre hôte.",
+   avArr:"Tout est-il en ordre ?",avArrQ:"Votre logement était-il impeccable à votre arrivée ?",avSej:"Votre séjour",avLog:"Le logement",avAcc:"L'accueil",com:"Un commentaire (facultatif)",photoPb:"Une photo (facultatif)",avEnv:"Envoyer mon avis",avMerci:"Merci pour votre avis.",
+   livTitre:"Comment arriver",maps:"Itinéraire Google Maps",waze:"Waze",repere:"Repère",parking:"Stationnement",codesTitre:"Pour entrer",code:"Code",wifi:"Wi-Fi",reseau:"Réseau",mdp:"Mot de passe",codesPlusTard:"Le code, les consignes d'entrée et le Wi-Fi s'afficheront ici le jour de votre arrivée, dès que le logement sera prêt.",appeler:"Sur place, un souci ?",departT:"Au départ",copier:"Copier",copie:"Copié",
+   pb:"Un problème pendant le séjour ?",pbTxt:"Décrivez-le, nous intervenons rapidement.",pbEnv:"Signaler",pbOk:"C'est transmis. Nous revenons vers vous très vite."},
+ en:{arrTitre:"Your arrival",mode:"You are arriving by",avion:"Plane",voiture:"Car",train:"Train",autre:"Other",vol:"Flight number",heure:"Expected arrival time",wa:"Your WhatsApp number (with country code)",enreg:"Save",enregOk:"Noted, thank you.",
+   srvTitre:"On your arrival",srvIntro:"We can have everything ready before you arrive.",commander:"Order",commandeOk:"Ordered: everything will be ready when you arrive.",dejaCmd:"Already ordered",paiement:"Paid as specified by your host.",
+   avArr:"Is everything in order?",avArrQ:"Was your accommodation spotless when you arrived?",avSej:"Your stay",avLog:"The accommodation",avAcc:"The welcome",com:"A comment (optional)",photoPb:"A photo (optional)",avEnv:"Send my review",avMerci:"Thank you for your review.",
+   livTitre:"Getting there",maps:"Google Maps directions",waze:"Waze",repere:"Landmark",parking:"Parking",codesTitre:"Getting in",code:"Code",wifi:"Wi-Fi",reseau:"Network",mdp:"Password",codesPlusTard:"The code, entry instructions and Wi-Fi will appear here on your arrival day, as soon as the accommodation is ready.",appeler:"Any issue on site?",departT:"When you leave",copier:"Copy",copie:"Copied",
+   pb:"A problem during your stay?",pbTxt:"Describe it, we will act quickly.",pbEnv:"Report",pbOk:"Sent. We will get back to you very soon."},
+ ar:{arrTitre:"الوصول ديالك",mode:"جاي ب",avion:"الطيارة",voiture:"الطوموبيل",train:"التران",autre:"شي حاجة أخرى",vol:"رقم الرحلة",heure:"ساعة الوصول المتوقعة",wa:"رقم الواتساب ديالك (مع رمز البلاد)",enreg:"سجّل",enregOk:"تسجّل، شكرا.",
+   srvTitre:"ملي توصل",srvIntro:"نقدرو نوجّدو ليك كلشي قبل ما توصل.",commander:"طلب",commandeOk:"تطلب: كلشي غادي يكون واجد ملي توصل.",dejaCmd:"مطلوب من قبل",paiement:"الخلاص حسب الطريقة اللي قال المضيف ديالك.",
+   avArr:"واش كلشي مزيان؟",avArrQ:"واش السكن كان نقي مزيان ملي وصلتي؟",avSej:"الإقامة ديالك",avLog:"السكن",avAcc:"الاستقبال",com:"ملاحظة (اختياري)",photoPb:"تصويرة (اختياري)",avEnv:"صيفط الرأي ديالي",avMerci:"شكرا على الرأي ديالك.",
+   livTitre:"كيفاش توصل",maps:"الطريق ف Google Maps",waze:"Waze",repere:"علامة",parking:"الباركينغ",codesTitre:"باش تدخل",code:"الكود",wifi:"الويفي",reseau:"الشبكة",mdp:"كلمة السر",codesPlusTard:"الكود، طريقة الدخول والويفي غادي يبانو هنا نهار الوصول ديالك، ملي يكون السكن واجد.",appeler:"كاين شي مشكل فالبلاصة؟",departT:"ملي تخرج",copier:"نسخ",copie:"تنسخ",
+   pb:"كاين شي مشكل فالإقامة؟",pbTxt:"شرحو لينا، غادي نتدخلو بسرعة.",pbEnv:"صيفط",pbOk:"توصلنا بيه. غادي نرجعو ليك دغيا."}
+};
+const etoiles = (nom) => `<div class="stars" data-n="${nom}">${[1,2,3,4,5].map(i => `<button type="button" data-v="${i}" aria-label="${i}/5">★</button>`).join("")}</div>`;
+function extras(){
+  const t = T2[L], u = T[L], h = []; const V = I.livret;
+  if (V) h.push(`<div class="card"><h2>${t.livTitre}</h2>${V.adresse || V.ville ? `<div>${esc(V.adresse)} ${esc(V.ville)}</div>` : ""}
+      ${V.carte && V.carte.maps ? `<div class="row"><a class="btn" href="${esc(V.carte.maps)}" target="_blank" rel="noopener">${t.maps}</a><a class="btn ghost" href="${esc(V.carte.waze)}" target="_blank" rel="noopener">${t.waze}</a></div>` : ""}
+      ${V.repere ? `<div><b>${t.repere} :</b> ${esc(V.repere)}</div>` : ""}${V.parking ? `<div><b>${t.parking} :</b> ${esc(V.parking)}</div>` : ""}
+      ${V.etapes.map((e, i) => `<figure class="etape">${e.photo ? `<img src="${esc(e.photo)}" alt="" loading="lazy">` : ""}<figcaption><b>${i + 1}.</b> ${esc(e.texte)}</figcaption></figure>`).join("")}
+      ${V.codes ? `<h3>${t.codesTitre}</h3>${V.code ? `<div class="secret"><span>${t.code}</span><b>${esc(V.code)}</b></div>` : ""}${V.serrure ? `<div>${esc(V.serrure)}</div>` : ""}${V.acces ? `<div style="white-space:pre-line">${esc(V.acces)}</div>` : ""}
+        ${V.wifi_nom || V.wifi_mdp ? `<div class="secret"><span>${t.wifi}</span><b>${esc(V.wifi_nom)}</b>${V.wifi_mdp ? `<span>${t.mdp}</span><b>${esc(V.wifi_mdp)}</b><button type="button" class="btn ghost" data-cp="${esc(V.wifi_mdp)}">${t.copier}</button>` : ""}</div>` : ""}
+        ${V.depart_consignes ? `<div><b>${t.departT} :</b> ${esc(V.depart_consignes)}</div>` : ""}` : `<p class="muted">${t.codesPlusTard}</p>`}
+      ${V.urgence ? `<div class="muted">${t.appeler} <a href="tel:${esc(V.urgence.replace(/[^+0-9]/g, ""))}">${esc(V.urgence)}</a></div>` : ""}</div>`);
+  const nomS = s => (L === "ar" && s.nom_ar) || (L === "en" && s.nom_en) || s.nom;
+  if (!I.termine) h.push(`<form class="card" id="arr"><h2>${t.arrTitre}</h2><div class="row"><label>${t.mode}<select name="mode"><option value="">${u.choisir}</option>${["avion","voiture","train","autre"].map(k => `<option value="${k}" ${I.arrivee_mode === k ? "selected" : ""}>${t[k]}</option>`).join("")}</select></label>
+      <label>${t.vol}<input name="vol" value="${esc(I.vol)}" autocapitalize="characters" placeholder="AT 773"></label></div>
+      <div class="row"><label>${t.heure}<input name="heure" type="time" value="${esc(I.arrivee_heure)}"></label><label>${t.wa}<input name="whatsapp" type="tel" value="${esc(I.whatsapp)}" placeholder="+33 6 12 34 56 78"></label></div>
+      <button class="btn ghost">${t.enreg}</button></form>`);
+  if (I.services.length) h.push(`<form class="card" id="srv"><h2>${t.srvTitre}</h2><p class="muted">${t.srvIntro}</p>
+      ${I.commandes.length ? `<div class="ok">${t.dejaCmd} : ${I.commandes.map(c => esc(c.quantite + " × " + nomS(c))).join(", ")}</div>` : ""}
+      ${I.services.map(s => `<div class="srvl"><div><b>${esc(nomS(s))}</b>${s.description && L === "fr" ? `<div class="muted" style="font-size:.88rem">${esc(s.description)}</div>` : ""}</div><div class="srvp">${(+s.prix).toLocaleString("fr-FR")} DH</div><input type="number" min="0" max="20" value="0" data-s="${s.id}" aria-label="${esc(nomS(s))}"></div>`).join("")}
+      <button class="btn">${t.commander}</button><span class="muted" style="font-size:.82rem">${t.paiement}</span></form>`);
+  if (I.avis.includes("arrivee")) h.push(`<form class="card" id="av1"><h2>${t.avArr}</h2><p>${t.avArrQ}</p>${etoiles("proprete")}<label>${t.com}<input name="commentaire"></label><label>${t.photoPb}<input name="photo" type="file" accept="image/*" capture="environment"></label><button class="btn">${t.avEnv}</button></form>`);
+  if (I.en_sejour) h.push(`<form class="card" id="pb"><h2>${t.pb}</h2><label>${t.pbTxt}<textarea name="description" rows="3"></textarea></label><label>${t.photoPb}<input name="photo" type="file" accept="image/*" capture="environment"></label><button class="btn ghost">${t.pbEnv}</button></form>`);
+  if (I.avis.includes("sejour")) h.push(`<form class="card" id="av2"><h2>${t.avSej}</h2><p>${t.avLog}</p>${etoiles("logement")}<p>${t.avAcc}</p>${etoiles("accueil")}<label>${t.com}<input name="commentaire"></label><button class="btn">${t.avEnv}</button></form>`);
+  return h.join("");
+}
+function bindExtras(){
+  const t = T2[L];
+  document.querySelectorAll("[data-cp]").forEach(b => b.onclick = async () => { try { await navigator.clipboard.writeText(b.dataset.cp); b.textContent = t.copie; } catch(e) {} });
+  document.querySelectorAll(".stars").forEach(g => g.querySelectorAll("button").forEach(b => b.onclick = () => { g.dataset.val = b.dataset.v; g.querySelectorAll("button").forEach(x => x.classList.toggle("on", +x.dataset.v <= +b.dataset.v)); }));
+  const envoi = (id, action, prep, okMsg) => { const f = $("#" + id); if (!f) return; f.onsubmit = async ev => { ev.preventDefault(); const b = f.querySelector("button:not([data-v])"); b.disabled = true;
+    try { const r = await prep(f); await call(action, r.fd || r, !!r.fd); I = await call("voy_info"); render(); setTimeout(() => alertOk(okMsg), 50); } catch(x) { b.disabled = false; alertOk(x.message.replace(/^champ:.*/, T[L].oblig), true); } }; };
+  envoi("arr", "voy_arrivee", f => Object.assign({t:tok}, Object.fromEntries(new FormData(f))), t.enregOk);
+  envoi("srv", "voy_commande", f => { const s = {}; f.querySelectorAll("[data-s]").forEach(i => { if (+i.value > 0) s[i.dataset.s] = +i.value; }); return {t:tok, services:s}; }, t.commandeOk);
+  const avis = (moment) => f => { const fd = new FormData(f); fd.append("t", tok); fd.append("moment", moment); f.querySelectorAll(".stars").forEach(g => { if (g.dataset.val) fd.append(g.dataset.n, g.dataset.val); }); return {fd}; };
+  envoi("av1", "voy_avis", avis("arrivee"), t.avMerci); envoi("av2", "voy_avis", avis("sejour"), t.avMerci);
+  envoi("pb", "voy_probleme", f => { const fd = new FormData(f); fd.append("t", tok); return {fd}; }, t.pbOk);
+}
+function alertOk(m, bad){ let e = $("#okbar"); if (!e) { e = document.createElement("div"); e.id = "okbar"; document.body.append(e); } e.textContent = m; e.className = bad ? "bad" : ""; e.hidden = false; clearTimeout(alertOk.h); alertOk.h = setTimeout(() => e.hidden = true, 4000); }
 const TYPES = {fr:{cin:"Carte nationale d'identité",passeport:"Passeport",sejour:"Carte de séjour"},en:{cin:"National identity card",passeport:"Passport",sejour:"Residence permit"},ar:{cin:"البطاقة الوطنية",passeport:"جواز السفر",sejour:"بطاقة الإقامة"}};
 const tok = new URLSearchParams(location.search).get("t") || "";
 let L = (()=>{ try { return localStorage.getItem("orvia-l") || ""; } catch(e) { return ""; } })() || ((navigator.language||"fr").slice(0,2) === "ar" ? "ar" : (navigator.language||"fr").slice(0,2) === "en" ? "en" : "fr");
@@ -95,7 +155,8 @@ function render(){
       <div class="sejour"><div><span class="muted">${t.arr}</span><b>${esc(fd(I.arrivee))}</b></div><div><span class="muted">${t.dep}</span><b>${esc(fd(I.depart))}</b></div></div>
       <label>${t.nb}<input id="nb" type="number" min="${Math.max(1, I.recues)}" max="20" value="${I.attendues}" inputmode="numeric"></label>
       <div class="progress">${bar}</div></div>`;
-  if (fini) h += `<div class="card"><p class="ok"><b>${esc(t.merci)}</b></p><p class="muted">${esc(t.merci2)}</p></div>`;
+  if (I.termine) {}
+  else if (fini) h += `<div class="card"><p class="ok"><b>${esc(t.merci)}</b></p><p class="muted">${esc(t.merci2)}</p></div>`;
   else {
     const types = Object.entries(TYPES[L]).map(([k, v]) => `<option value="${k}">${esc(v)}</option>`).join("");
     h += `<form class="card" id="f" novalidate><h2>${t.fiche} ${I.recues + 1} ${t.sur} ${I.attendues}</h2>
@@ -113,8 +174,9 @@ function render(){
       <button class="btn" id="go">${t.envoyer}</button>
       <div class="secure">${t.secu}</div></form>`;
   }
-  $("#v").innerHTML = h;
-  $("#nb").onchange = async e => { try { const r = await call("voy_nb", {t:tok, nb:+e.target.value}); I.attendues = r.attendues; render(); } catch(x) { alertErr(x.message); } };
+  h += extras();
+  $("#v").innerHTML = h; bindExtras();
+  if ($("#nb")) $("#nb").onchange = async e => { try { const r = await call("voy_nb", {t:tok, nb:+e.target.value}); I.attendues = r.attendues; render(); } catch(x) { alertErr(x.message); } };
   const f = $("#f"); if (f) f.onsubmit = async ev => {
     ev.preventDefault(); const b = $("#go"); b.disabled = true; b.textContent = t.envoi;
     f.querySelectorAll("[aria-invalid]").forEach(x => x.removeAttribute("aria-invalid"));

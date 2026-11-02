@@ -18,10 +18,10 @@ function maj_verifier(string $zip): array {
   if (!function_exists('sodium_crypto_sign_verify_detached')) throw new RuntimeException('Extension PHP « sodium » absente : impossible de vérifier la signature.');
   $z = new ZipArchive(); if ($z->open($zip) !== true) throw new RuntimeException('Fichier zip illisible.');
   $man = $z->getFromName('amaya-manifeste.json'); $sig = $z->getFromName('amaya-manifeste.sig');
-  if ($man === false || $sig === false) { $z->close(); throw new RuntimeException('Ce fichier n\'est pas un paquet de mise à jour Amaya.'); }
+  if ($man === false || $sig === false) { $z->close(); throw new RuntimeException('Ce fichier n\'est pas un paquet de mise à jour ' . PRODUIT_NOM . '.'); }
   $ok = false; $sigb = base64_decode(trim($sig), true) ?: '';
   foreach (MAJ_CLES as $k) if (strlen($sigb) === SODIUM_CRYPTO_SIGN_BYTES && sodium_crypto_sign_verify_detached($sigb, $man, base64_decode($k))) { $ok = true; break; }
-  if (!$ok) { $z->close(); throw new RuntimeException('Signature invalide : ce paquet ne vient pas de l\'éditeur d\'Amaya ou a été modifié. Mise à jour refusée.'); }
+  if (!$ok) { $z->close(); throw new RuntimeException('Signature invalide : ce paquet ne vient pas de l\'éditeur de ' . PRODUIT_NOM . ' ou a été modifié. Mise à jour refusée.'); }
   $M = json_decode($man, true); if (!is_array($M) || empty($M['version']) || !is_array($M['fichiers'] ?? null)) { $z->close(); throw new RuntimeException('Manifeste du paquet invalide.'); }
   foreach ($M['fichiers'] as $p => $h) {
     if (!maj_chemin_ok($p) || maj_protege($p)) { $z->close(); throw new RuntimeException('Chemin interdit dans le paquet : ' . $p); }

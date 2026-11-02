@@ -21,6 +21,23 @@ function c_date($v): string { $v = (string)$v; if (!preg_match('/^\d{4}-\d{2}-\d
 function c_mission_agent(int $mid, int $aid): array {
   $m = cz_mission($mid); if (!$m || (int)$m['animatrice_id'] !== $aid) c_fail('Mission introuvable.', 404); return $m;
 }
+/** Mission de l'agent : par son lien personnel (ouvert depuis WhatsApp, sans compte), sinon par sa session dans l'appli. */
+function c_mission_acces(int $mid): array {
+  global $in; $t = (string)($in['t'] ?? ($_GET['t'] ?? ''));
+  if ($t !== '') { limite('agent_lien', 120, 600); $m = cz_mission_par_jeton($t) ?: c_fail('Ce lien de mission n\'est plus valable. Demandez-en un nouveau.', 404); return $m; }
+  return c_mission_agent($mid, c_agent());
+}
+
+/** Messages WhatsApp prêts à envoyer au voyageur (liens wa.me) : fiche, code (si feu vert), nouvelles à l'arrivée. */
+function c_wa_voyageur(array $r): array {
+  $tel = cz_wa_reservation($r); if ($tel === '') return ['tel' => false];
+  $lien = cz_lien_voyageur($r); $fv = cz_feu_vert($r); $l = cz_logement((int)$r['logement_id']);
+  $o = ['tel' => true, 'fiche' => cz_wa_lien($tel, "Bonjour, nous préparons votre arrivée à " . $r['logement'] . ". Merci de remplir la fiche de chaque voyageur sur ce lien sécurisé (ne nous envoyez pas vos pièces d'identité par WhatsApp) : " . $lien),
+    'nouvelles' => cz_wa_lien($tel, "Bienvenue à " . $r['logement'] . ". Tout est-il en ordre ? Vous pouvez nous donner votre avis ou signaler un problème ici : " . $lien)];
+  $carte = cz_liens_carte($l['lat'], $l['lng']);
+  if ($fv['ok'] && can('tout')) $o['code'] = cz_wa_lien($tel, "Votre logement " . $r['logement'] . " est prêt. Code d'accès : " . cz_dec($l['code_enc']) . ($l['acces_enc'] ? "\n" . cz_dec($l['acces_enc']) : '') . ($carte ? "\nItinéraire : " . $carte['maps'] : '') . "\nPhotos de l'entrée et Wi-Fi : " . $lien);
+  return $o;
+}
 
 $action = (string)($_GET['action'] ?? ''); demo_bloquer($action);
 $multipart = str_starts_with($_SERVER['CONTENT_TYPE'] ?? '', 'multipart/form-data');
@@ -36,14 +53,16 @@ try {
       c_out(['logements' => array_map(fn($l) => cz_logement_public($l), db()->query("SELECT * FROM c_logements ORDER BY actif DESC, ville, nom")->fetchAll()),
         'proprietaires' => db()->query("SELECT id, nom, email, telephone, plafond, actif, (jeton_hash IS NOT NULL) lien FROM c_proprietaires ORDER BY nom")->fetchAll(),
         'agents' => db()->query("SELECT id, prenom, nom, telephone FROM animatrices WHERE actif = 1 AND statut IN ('actif','sans_offres') ORDER BY prenom, nom")->fetchAll(),
-        'sources' => CZ_SOURCES, 'types' => CZ_MISSION_TYPES, 'statuts' => CZ_MISSION_STATUTS, 'titulaire' => est_titulaire(), 'gerer' => can('tout'),
+        'sources' => CZ_SOURCES, 'types' => CZ_MISSION_TYPES, 'modes' => CZ_ARRIVEE_MODES,
+        'admins' => db()->query("SELECT id, nom FROM admins WHERE actif = 1 ORDER BY nom")->fetchAll(), 'statuts' => CZ_MISSION_STATUTS, 'titulaire' => est_titulaire(), 'gerer' => can('tout'),
         'reglages' => ['cz_conservation_jours' => cz_conservation_jours(), 'cz_copie_piece' => cz_copie_piece_demandee() ? '1' : '0', 'cz_code_auto' => reglage('cz_code_auto', '1'), 'cz_heure_menage' => reglage('cz_heure_menage', '11:00')]]);
 
     case 'aujourdhui':
       c_admin(); $j = date('Y-m-d'); $d = date('Y-m-d', strtotime('+1 day'));
       $st = db()->prepare("SELECT r.*, l.nom logement, l.ville FROM c_reservations r JOIN c_logements l ON l.id = r.logement_id WHERE r.statut = 'confirmee' AND r.arrivee BETWEEN ? AND ? ORDER BY r.arrivee, l.nom"); $st->execute([$j, $d]);
       $arr = array_map(fn($r) => ['id' => (int)$r['id'], 'logement' => $r['logement'], 'ville' => $r['ville'], 'arrivee' => $r['arrivee'], 'depart' => $r['depart'], 'source' => $r['source'], 'libelle' => $r['libelle'],
-        'code_envoye' => $r['code_envoye_at'], 'fv' => cz_feu_vert($r), 'lien' => cz_lien_voyageur($r)], $st->fetchAll());
+        'code_envoye' => $r['code_envoye_at'], 'fv' => cz_feu_vert($r), 'lien' => cz_lien_voyageur($r), 'heure' => cz_heure_arrivee($r), 'heure_connue' => $r['arrivee_heure'] !== '', 'vol' => $r['vol'], 'mode' => $r['arrivee_mode'],
+        'wa' => c_wa_voyageur($r)], $st->fetchAll());
       $st = db()->prepare("SELECT m.id, m.type, m.date, m.heure, m.statut, l.nom logement, l.ville, CONCAT(a.prenom, ' ', a.nom) agent FROM c_missions m JOIN c_logements l ON l.id = m.logement_id LEFT JOIN animatrices a ON a.id = m.animatrice_id WHERE m.date = ? OR (m.date < ? AND m.statut <> 'faite') ORDER BY m.date, m.heure");
       $st->execute([$j, $j]);
       $inc = db()->query("SELECT i.id, i.description, i.bloquant, i.created_at, l.nom logement FROM c_incidents i JOIN c_logements l ON l.id = i.logement_id WHERE i.statut = 'ouvert' ORDER BY i.bloquant DESC, i.created_at DESC LIMIT 30")->fetchAll();
@@ -53,17 +72,28 @@ try {
       c_admin(); $l = cz_logement((int)($_GET['id'] ?? 0)) ?: c_fail('Logement introuvable.', 404);
       c_out(['logement' => cz_logement_public($l, can('tout'))]);
 
+    case 'logement_photo':
+      // Photo d'une étape du livret d'arrivée (rue, entrée, porte, boîte à clés).
+      c_admin('tout'); $f = $_FILES['photo'] ?? null; if (!$f || $f['error'] !== UPLOAD_ERR_OK) c_fail('Photo non reçue, réessayez.');
+      try { $p = save_image($f['tmp_name']); } catch (RuntimeException $e) { c_fail($e->getMessage()); }
+      c_out(['photo' => $p['fichier'], 'url' => photo_url($p['fichier'], true)]);
+
     case 'logement_save':
       c_admin('tout'); $id = (int)($in['id'] ?? 0);
       $nom = clip($in['nom'] ?? '', 160); if ($nom === '') c_fail('Donnez un nom au logement.');
       $ical = implode("\n", array_values(array_filter(array_map('trim', preg_split('/[\r\n]+/', (string)($in['ical'] ?? ''))))));
       foreach (array_filter(explode("\n", $ical)) as $u) if (!preg_match('#^https://\S+$#i', $u)) c_fail('Chaque lien de calendrier doit commencer par https://');
+      $pos = null; $ps = trim((string)($in['position'] ?? ''));
+      if (is_numeric($in['lat'] ?? null) && is_numeric($in['lng'] ?? null)) $pos = cz_parse_position($in['lat'] . ',' . $in['lng']);
+      elseif ($ps !== '' && !($pos = cz_parse_position($ps))) c_fail(preg_match('#goo\.gl|maps\.app#i', $ps) ? 'Lien Google Maps raccourci : ouvrez-le dans le navigateur, puis copiez l\'adresse complète de la page (elle contient les coordonnées).' : 'Position non reconnue : collez un lien Google Maps complet ou des coordonnées (31.6295, -7.9811).');
       $chk = []; foreach ((array)($in['checklist'] ?? []) as $p) { $p = ['piece' => clip($p['piece'] ?? '', 60), 'consignes' => clip($p['consignes'] ?? '', 400), 'photos' => max(0, min(10, (int)($p['photos'] ?? 1)))]; if ($p['piece'] !== '') $chk[] = $p; }
       $v = [$nom, clip($in['ville'] ?? '', 80), clip($in['adresse'] ?? '', 300), ((int)($in['proprietaire_id'] ?? 0)) ?: null, ((int)($in['agent_id'] ?? 0)) ?: null,
         cz_enc(clip($in['acces'] ?? '', 1500)), cz_enc(clip($in['code'] ?? '', 40)), json_encode($chk ?: CZ_PIECES_DEFAUT, JSON_UNESCAPED_UNICODE), clip($in['kit_linge'] ?? '', 120),
         max(15, min(600, (int)($in['duree_menage'] ?? 120))), $ical, clip($in['notes'] ?? '', 2000), empty($in['actif']) && $id ? 0 : 1];
       if ($id) { $v[] = $id; db()->prepare("UPDATE c_logements SET nom=?, ville=?, adresse=?, proprietaire_id=?, agent_id=?, acces_enc=?, code_enc=?, checklist=?, kit_linge=?, duree_menage=?, ical=?, notes=?, actif=? WHERE id=?")->execute($v); }
       else { $v[] = now(); db()->prepare("INSERT INTO c_logements (nom, ville, adresse, proprietaire_id, agent_id, acces_enc, code_enc, checklist, kit_linge, duree_menage, ical, notes, actif, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)")->execute($v); $id = (int)db()->lastInsertId(); }
+      if ($pos) db()->prepare("UPDATE c_logements SET lat = ?, lng = ?, pos_fixe = 1 WHERE id = ?")->execute([$pos[0], $pos[1], $id]);
+      if (isset($in['livret'])) db()->prepare("UPDATE c_logements SET livret_enc = ? WHERE id = ?")->execute([cz_enc(json_encode(cz_livret_nettoyer((array)$in['livret']), JSON_UNESCAPED_UNICODE)), $id]);
       journal('logement', $nom);
       $sync = null; if ($ical !== '') { try { $sync = cz_sync_logement($id); } catch (Throwable $e) { $sync = $e->getMessage(); } }
       c_out(['ok' => true, 'id' => $id, 'sync' => $sync]);
@@ -105,7 +135,10 @@ try {
           'resume' => $tit && !$v['scelle_at'] ? trim(($f['prenom'] ?? '') . ' ' . mb_strtoupper($f['nom'] ?? '')) . ' · ' . ($f['nationalite'] ?? '') : 'Fiche complète'];
       }
       c_out(['reservation' => ['id' => (int)$r['id'], 'logement' => $r['logement'], 'arrivee' => $r['arrivee'], 'depart' => $r['depart'], 'nb' => (int)$r['nb_voyageurs'], 'source' => $r['source'],
-        'libelle' => $r['libelle'], 'statut' => $r['statut'], 'code_envoye' => $r['code_envoye_at'], 'lien' => cz_lien_voyageur($r), 'fv' => cz_feu_vert($r)], 'fiches' => $F, 'titulaire' => $tit]);
+        'libelle' => $r['libelle'], 'statut' => $r['statut'], 'code_envoye' => $r['code_envoye_at'], 'lien' => cz_lien_voyageur($r), 'fv' => cz_feu_vert($r),
+        'heure' => $r['arrivee_heure'], 'vol' => $r['vol'], 'mode' => $r['arrivee_mode'], 'wa' => c_wa_voyageur($r)], 'fiches' => $F, 'titulaire' => $tit,
+        'commandes' => (function () use ($r) { $st = db()->prepare("SELECT c.quantite, c.prix, c.cout, c.statut, s.nom FROM c_commandes c JOIN c_services s ON s.id = c.service_id WHERE c.reservation_id = ?"); $st->execute([$r['id']]); return $st->fetchAll(); })(),
+        'avis' => (function () use ($r) { $st = db()->prepare("SELECT moment, proprete, logement, accueil, commentaire, created_at FROM c_avis WHERE reservation_id = ?"); $st->execute([$r['id']]); return $st->fetchAll(); })()]);
 
     case 'fiches_declaration':
       // Fiches complètes d'une réservation, pour la déclaration aux autorités. Direction titulaire seulement, journalisé.
@@ -136,7 +169,10 @@ try {
       c_admin(); $m = cz_mission((int)($_GET['id'] ?? 0)) ?: c_fail('Mission introuvable.', 404); $etat = cz_etat($m); $P = [];
       foreach (cz_checklist($m) as $i => $p) $P[] = $p + ['ok' => !empty($etat[$i]['ok']), 'urls' => array_map(fn($f) => photo_url($f, true), (array)($etat[$i]['photos'] ?? [])), 'grandes' => array_map(fn($f) => photo_url($f), (array)($etat[$i]['photos'] ?? []))];
       c_out(['mission' => ['id' => (int)$m['id'], 'logement' => $m['logement'], 'type' => $m['type'], 'date' => $m['date'], 'heure' => $m['heure'], 'statut' => $m['statut'], 'agent' => $m['agent'], 'animatrice_id' => $m['animatrice_id'] ? (int)$m['animatrice_id'] : null,
-        'note' => $m['note'], 'debut' => $m['debut_at'], 'fin' => $m['fin_at'], 'pieces' => $P, 'manques' => cz_mission_manques($m)]]);
+        'note' => $m['note'], 'debut' => $m['debut_at'], 'fin' => $m['fin_at'], 'pieces' => $P, 'manques' => cz_mission_manques($m),
+        'debut_pos' => $m['debut_at'] ? cz_position_texte($m['debut_dist'] === null ? null : (int)$m['debut_dist']) : '', 'fin_pos' => $m['fin_at'] ? cz_position_texte($m['fin_dist'] === null ? null : (int)$m['fin_dist']) : '',
+        'loin' => ($m['debut_dist'] !== null && (int)$m['debut_dist'] > 150) || ($m['fin_dist'] !== null && (int)$m['fin_dist'] > 150),
+        'duree_reelle' => $m['debut_at'] && $m['fin_at'] ? (int)round((strtotime($m['fin_at']) - strtotime($m['debut_at'])) / 60) : null, 'duree_prevue' => cz_duree($m + ['duree_menage' => 120])]]);
 
     case 'mission_save':
       c_admin('tout'); $id = (int)($in['id'] ?? 0); $aid = ((int)($in['animatrice_id'] ?? 0)) ?: null; $date = c_date($in['date'] ?? ''); $heure = preg_match('/^\d{2}:\d{2}$/', (string)($in['heure'] ?? '')) ? $in['heure'] : '';
@@ -181,6 +217,43 @@ try {
       reglage_set('cz_heure_menage', preg_match('/^\d{2}:\d{2}$/', (string)($in['cz_heure_menage'] ?? '')) ? $in['cz_heure_menage'] : '11:00');
       c_out(['ok' => true]);
 
+    case 'planning':
+      c_admin(); c_out(cz_planning(c_date($_GET['date'] ?? date('Y-m-d'))));
+
+    case 'tache_save':
+      // Mission ou tâche du gestionnaire (accueil, visite, transfert…), attribuée à un agent ou à un gestionnaire.
+      c_admin('tout'); $id = (int)($in['id'] ?? 0); $date = c_date($in['date'] ?? ''); $heure = preg_match('/^\d{2}:\d{2}$/', (string)($in['heure'] ?? '')) ? $in['heure'] : '';
+      $qui = (string)($in['qui'] ?? ''); $aid = str_starts_with($qui, 'a') ? (int)substr($qui, 1) : null; $gid = str_starts_with($qui, 'g') ? (int)substr($qui, 1) : null;
+      $duree = max(0, min(600, (int)($in['duree'] ?? 0)));
+      if ($id) db()->prepare("UPDATE c_missions SET date = ?, heure = ?, animatrice_id = ?, admin_id = ?, duree = IF(? > 0, ?, duree) WHERE id = ?")->execute([$date, $heure, $aid ?: null, $gid ?: null, $duree, $duree, $id]);
+      else { $lid = (int)($in['logement_id'] ?? 0); cz_logement($lid) ?: c_fail('Choisissez le logement.'); $t = isset(CZ_MISSION_TYPES[$in['type'] ?? '']) ? $in['type'] : 'autre';
+        db()->prepare("INSERT INTO c_missions (logement_id, type, date, heure, animatrice_id, admin_id, duree, statut, etat, note, created_at) VALUES (?,?,?,?,?,?,?,'a_faire','[]',?,?)")->execute([$lid, $t, $date, $heure, $aid ?: null, $gid ?: null, $duree, clip($in['note'] ?? '', 500), now()]); $id = (int)db()->lastInsertId(); }
+      c_out(['ok' => true, 'id' => $id]);
+
+    case 'mission_lien':
+      // Lien personnel de la mission, à envoyer à l'agent par WhatsApp (il l'ouvre sans compte).
+      c_admin('tout'); $m = cz_mission((int)($in['id'] ?? 0)) ?: c_fail('Mission introuvable.', 404); $url = cz_mission_lien((int)$m['id']);
+      $tel = ''; if ($m['animatrice_id']) { $st = db()->prepare("SELECT telephone FROM animatrices WHERE id = ?"); $st->execute([$m['animatrice_id']]); $tel = (string)$st->fetchColumn(); }
+      $txt = (CZ_MISSION_TYPES[$m['type']] ?? 'Mission') . ' · ' . $m['logement'] . "\n" . date('d/m', strtotime($m['date'])) . ($m['heure'] ? ' à ' . $m['heure'] : '') . "\n" . trim($m['adresse'] . ' ' . $m['ville']) . (($c = cz_liens_carte($m['lat'], $m['lng'])) ? "\nItinéraire : " . $c['maps'] : '') . ($m['note'] ? "\n" . $m['note'] : '') . "\nVotre mission : " . $url;
+      c_out(['lien' => $url, 'wa' => $tel !== '' ? cz_wa_lien($tel, $txt) : '', 'texte' => $txt]);
+
+    case 'avis':
+      c_admin(); $from = c_date($_GET['from'] ?? date('Y-m-d', strtotime('-90 days'))); $to = c_date($_GET['to'] ?? date('Y-m-d'));
+      $st = db()->prepare("SELECT v.*, v.logement note_logement, l.nom logement, CONCAT(a.prenom, ' ', a.nom) agent FROM c_avis v JOIN c_logements l ON l.id = v.logement_id LEFT JOIN animatrices a ON a.id = v.animatrice_id WHERE DATE(v.created_at) BETWEEN ? AND ? ORDER BY v.created_at DESC"); $st->execute([$from, $to]); $L = $st->fetchAll();
+      $moy = function (array $L, string $k, string $champ) { $g = []; foreach ($L as $v) if ($v[$champ] !== null && $v[$k]) $g[$v[$k]][] = (int)$v[$champ]; $o = []; foreach ($g as $n => $x) $o[] = ['nom' => $n, 'note' => round(array_sum($x) / count($x), 1), 'n' => count($x)]; usort($o, fn($a, $b) => $a['note'] <=> $b['note']); return $o; };
+      c_out(['avis' => array_map(fn($v) => $v + ['photo_url' => $v['photo'] ? photo_url($v['photo'], true) : ''], $L), 'agents' => $moy($L, 'agent', 'proprete'), 'logements' => $moy($L, 'logement', 'proprete')]);
+
+    case 'services':
+      c_admin(); $f = c_date($_GET['from'] ?? date('Y-m-01')); $t = c_date($_GET['to'] ?? date('Y-m-d'));
+      c_out(['services' => cz_services(true), 'marges' => cz_marges($f, $t), 'from' => $f, 'to' => $t]);
+
+    case 'service_save':
+      c_admin('tout'); $id = (int)($in['id'] ?? 0); $nom = clip($in['nom'] ?? '', 120); if ($nom === '') c_fail('Le nom du service est obligatoire.');
+      $v = [$nom, clip($in['nom_en'] ?? '', 120), clip($in['nom_ar'] ?? '', 120), clip($in['description'] ?? '', 300), (float)(montant($in['prix'] ?? 0) ?? 0), (float)(montant($in['cout'] ?? 0) ?? 0), max(0, min(240, (int)($in['delai_h'] ?? 24))), empty($in['actif']) && $id ? 0 : 1, (int)($in['ordre'] ?? 0)];
+      if ($id) { $v[] = $id; db()->prepare("UPDATE c_services SET nom=?, nom_en=?, nom_ar=?, description=?, prix=?, cout=?, delai_h=?, actif=?, ordre=? WHERE id=?")->execute($v); }
+      else { $v[] = now(); db()->prepare("INSERT INTO c_services (nom, nom_en, nom_ar, description, prix, cout, delai_h, actif, ordre, created_at) VALUES (?,?,?,?,?,?,?,?,?,?)")->execute($v); $id = (int)db()->lastInsertId(); }
+      c_out(['ok' => true, 'id' => $id]);
+
     /* ================= Équipe terrain (appli) ================= */
     case 'mes_missions':
       $aid = c_agent(); $j = date('Y-m-d');
@@ -188,19 +261,21 @@ try {
       $st->execute([$aid, $j, date('Y-m-d', strtotime('+7 days')), $j]); c_out(['missions' => $st->fetchAll(), 'aujourdhui' => $j]);
 
     case 'ma_mission':
-      $aid = c_agent(); $m = c_mission_agent((int)($_GET['id'] ?? 0), $aid); $etat = cz_etat($m); $P = [];
+      $m = c_mission_acces((int)($_GET['id'] ?? 0)); $etat = cz_etat($m); $P = [];
       foreach (cz_checklist($m) as $i => $p) $P[] = $p + ['ok' => !empty($etat[$i]['ok']), 'urls' => array_map(fn($f) => photo_url($f, true), (array)($etat[$i]['photos'] ?? []))];
       $jour = $m['date'] <= date('Y-m-d', strtotime('+1 day'));
       c_out(['mission' => ['id' => (int)$m['id'], 'logement' => $m['logement'], 'adresse' => $m['adresse'], 'ville' => $m['ville'], 'type' => $m['type'], 'date' => $m['date'], 'heure' => $m['heure'], 'statut' => $m['statut'],
-        'note' => $m['note'], 'kit_linge' => $m['kit_linge'], 'acces' => $jour ? cz_dec($m['acces_enc']) : '', 'pieces' => $P, 'manques' => cz_mission_manques($m)]]);
+        'note' => $m['note'], 'kit_linge' => $m['kit_linge'], 'acces' => $jour ? cz_dec($m['acces_enc']) : '', 'pieces' => $P, 'manques' => cz_mission_manques($m),
+        'commence' => $m['debut_at'] !== null, 'agent' => $m['agent'], 'agence' => AG_NOM, 'livret' => cz_livret($m, $jour)]]);
 
     case 'mission_debut':
-      $aid = c_agent(); $m = c_mission_agent((int)($in['id'] ?? 0), $aid);
-      if ($m['statut'] !== 'faite') db()->prepare("UPDATE c_missions SET statut = 'en_cours', debut_at = COALESCE(debut_at, ?) WHERE id = ?")->execute([now(), $m['id']]);
-      c_out(['ok' => true]);
+      $m = c_mission_acces((int)($in['id'] ?? 0));
+      if ($m['statut'] !== 'faite') { db()->prepare("UPDATE c_missions SET statut = 'en_cours', debut_at = COALESCE(debut_at, ?) WHERE id = ?")->execute([now(), $m['id']]);
+        if ($m['debut_lat'] === null) $d = cz_position($m, 'debut', $in['lat'] ?? null, $in['lng'] ?? null); }
+      c_out(['ok' => true, 'position' => isset($d) ? cz_position_texte($d) : null]);
 
     case 'mission_photo':
-      $aid = c_agent(); $m = c_mission_agent((int)($in['id'] ?? 0), $aid); if ($m['statut'] === 'faite') c_fail('Mission déjà terminée.');
+      $m = c_mission_acces((int)($in['id'] ?? 0)); if ($m['statut'] === 'faite') c_fail('Mission déjà terminée.');
       $i = (int)($in['piece'] ?? -1); $chk = cz_checklist($m); if (!isset($chk[$i])) c_fail('Pièce inconnue.');
       $f = $_FILES['photo'] ?? null; if (!$f || $f['error'] !== UPLOAD_ERR_OK) c_fail('Photo non reçue, réessayez.');
       $etat = cz_etat($m); if (count((array)($etat[$i]['photos'] ?? [])) >= 12) c_fail('12 photos au plus par pièce.');
@@ -209,7 +284,7 @@ try {
       c_out(['ok' => true, 'url' => photo_url($p['fichier'], true)]);
 
     case 'mission_piece':
-      $aid = c_agent(); $m = c_mission_agent((int)($in['id'] ?? 0), $aid); if ($m['statut'] === 'faite') c_fail('Mission déjà terminée.');
+      $m = c_mission_acces((int)($in['id'] ?? 0)); if ($m['statut'] === 'faite') c_fail('Mission déjà terminée.');
       $i = (int)($in['piece'] ?? -1); $chk = cz_checklist($m); if (!isset($chk[$i])) c_fail('Pièce inconnue.');
       $etat = cz_etat($m); $ok = !empty($in['ok']);
       if ($ok && count((array)($etat[$i]['photos'] ?? [])) < $chk[$i]['photos']) c_fail('Prenez d\'abord ' . $chk[$i]['photos'] . ' photo(s) de la pièce « ' . $chk[$i]['piece'] . ' ».');
@@ -217,9 +292,10 @@ try {
       c_out(['ok' => true]);
 
     case 'mission_terminer':
-      $aid = c_agent(); $m = c_mission_agent((int)($in['id'] ?? 0), $aid); $man = cz_mission_manques($m);
+      $m = c_mission_acces((int)($in['id'] ?? 0)); $man = cz_mission_manques($m);
       if ($man) c_out(['ok' => false, 'manques' => $man]);
       db()->prepare("UPDATE c_missions SET statut = 'faite', fin_at = ? WHERE id = ?")->execute([now(), $m['id']]);
+      cz_position($m, 'fin', $in['lat'] ?? null, $in['lng'] ?? null);
       // Arrivée suivante dans ce logement : si tout est au vert, le code part tout de suite.
       if (reglage('cz_code_auto', '1') === '1') {
         $st = db()->prepare("SELECT id FROM c_reservations WHERE logement_id = ? AND statut = 'confirmee' AND code_envoye_at IS NULL AND arrivee BETWEEN ? AND ? ORDER BY arrivee LIMIT 1");
@@ -228,7 +304,7 @@ try {
       c_out(['ok' => true]);
 
     case 'incident_signaler':
-      $aid = c_agent(); $m = c_mission_agent((int)($in['mission'] ?? 0), $aid);
+      $m = c_mission_acces((int)($in['mission'] ?? 0)); $aid = (int)$m['animatrice_id'];
       $d = clip($in['description'] ?? '', 1000); if ($d === '') c_fail('Décrivez le problème en quelques mots.');
       $photo = null; $f = $_FILES['photo'] ?? null; if ($f && $f['error'] === UPLOAD_ERR_OK) $photo = save_image($f['tmp_name'])['fichier'];
       $st = db()->prepare("SELECT CONCAT(prenom, ' ', nom) FROM animatrices WHERE id = ?"); $st->execute([$aid]);
@@ -240,7 +316,36 @@ try {
     case 'voy_info':
       limite('voy', 60, 600); $r = cz_reservation_par_jeton((string)($_GET['t'] ?? '')) ?: c_fail('Ce lien n\'est plus valable. Contactez votre hôte.', 404);
       c_out(['logement' => $r['logement'], 'ville' => $r['ville'], 'arrivee' => $r['arrivee'], 'depart' => $r['depart'], 'attendues' => max(1, (int)$r['nb_voyageurs']), 'recues' => cz_nb_fiches((int)$r['id']),
-        'piece' => cz_copie_piece_demandee(), 'pays' => reglage('cz_pays', 'MA'), 'agence' => AG_NOM, 'types' => CZ_PIECE_TYPES]);
+        'piece' => cz_copie_piece_demandee(), 'pays' => reglage('cz_pays', 'MA'), 'agence' => AG_NOM, 'types' => CZ_PIECE_TYPES,
+        'arrivee_mode' => $r['arrivee_mode'], 'vol' => $r['vol'], 'arrivee_heure' => $r['arrivee_heure'], 'whatsapp' => cz_dec($r['whatsapp_enc'] ?? ''), 'avis' => cz_avis_ouverts($r),
+        'livret' => cz_livret_voyageur($r), 'en_sejour' => date('Y-m-d') >= $r['arrivee'] && date('Y-m-d') < $r['depart'], 'termine' => date('Y-m-d') >= $r['depart'],
+        'services' => $r['arrivee'] >= date('Y-m-d') ? array_map(fn($x) => ['id' => (int)$x['id'], 'nom' => $x['nom'], 'nom_en' => $x['nom_en'], 'nom_ar' => $x['nom_ar'], 'description' => $x['description'], 'prix' => (float)$x['prix']], cz_services()) : [],
+        'commandes' => (function () use ($r) { $st = db()->prepare("SELECT s.nom, s.nom_en, s.nom_ar, c.quantite FROM c_commandes c JOIN c_services s ON s.id = c.service_id WHERE c.reservation_id = ? AND c.statut <> 'annulee'"); $st->execute([$r['id']]); return $st->fetchAll(); })()]);
+
+    case 'voy_arrivee':
+      limite('voy', 60, 600); $r = cz_reservation_par_jeton((string)($in['t'] ?? '')) ?: c_fail('Ce lien n\'est plus valable.', 404);
+      $mode = isset(CZ_ARRIVEE_MODES[$in['mode'] ?? '']) ? $in['mode'] : ''; $vol = strtoupper(trim(preg_replace('/\s+/', ' ', preg_replace('/[^A-Za-z0-9 ]/', '', (string)($in['vol'] ?? '')))));
+      $h = preg_match('/^\d{2}:\d{2}$/', (string)($in['heure'] ?? '')) ? $in['heure'] : ''; $wa = clip($in['whatsapp'] ?? '', 30);
+      if ($wa !== '' && cz_wa_num($wa) === '') c_fail('Numéro WhatsApp invalide : indiquez-le avec l\'indicatif du pays (ex. +33 6 12 34 56 78).');
+      db()->prepare("UPDATE c_reservations SET arrivee_mode = ?, vol = ?, arrivee_heure = ?, whatsapp_enc = ?, updated_at = ? WHERE id = ?")->execute([$mode, substr($vol, 0, 12), $h, cz_enc($wa), now(), $r['id']]);
+      c_out(['ok' => true]);
+
+    case 'voy_avis':
+      limite('voy_avis', 10, 3600); $r = cz_reservation_par_jeton((string)($in['t'] ?? '')) ?: c_fail('Ce lien n\'est plus valable.', 404);
+      $photo = null; $f = $_FILES['photo'] ?? null; if ($f && $f['error'] === UPLOAD_ERR_OK) $photo = save_image($f['tmp_name'])['fichier'];
+      try { cz_avis_enregistrer($r, (string)($in['moment'] ?? ''), $in, $photo); } catch (InvalidArgumentException | RuntimeException $e) { c_fail($e->getMessage()); }
+      c_out(['ok' => true]);
+
+    case 'voy_probleme':
+      limite('voy_avis', 10, 3600); $r = cz_reservation_par_jeton((string)($in['t'] ?? '')) ?: c_fail('Ce lien n\'est plus valable.', 404);
+      if (date('Y-m-d') < $r['arrivee'] || date('Y-m-d') > $r['depart']) c_fail('Le signalement est ouvert pendant le séjour.');
+      $d = clip($in['description'] ?? '', 1000); if ($d === '') c_fail('champ:description');
+      $photo = null; $f = $_FILES['photo'] ?? null; if ($f && $f['error'] === UPLOAD_ERR_OK) $photo = save_image($f['tmp_name'])['fichier'];
+      cz_alerte_voyageur($r, $d, $photo, false); c_out(['ok' => true]);
+
+    case 'voy_commande':
+      limite('voy_commande', 10, 3600); $r = cz_reservation_par_jeton((string)($in['t'] ?? '')) ?: c_fail('Ce lien n\'est plus valable.', 404);
+      try { c_out(['ok' => true, 'commande' => cz_commander($r, (array)($in['services'] ?? []))]); } catch (RuntimeException $e) { c_fail($e->getMessage()); }
 
     case 'voy_fiche':
       limite('voy_fiche', 20, 3600); $r = cz_reservation_par_jeton((string)($in['t'] ?? '')) ?: c_fail('Ce lien n\'est plus valable.', 404);
@@ -269,7 +374,9 @@ try {
         db()->query("SELECT m.logement_id, m.type, m.date, m.fin_at, m.etat FROM c_missions m WHERE m.logement_id IN ($in_) AND m.statut = 'faite' AND m.date >= CURDATE() - INTERVAL 60 DAY ORDER BY m.date DESC")->fetchAll());
       $I = array_map(fn($i) => $i + ['photo_url' => $i['photo'] ? photo_lien($i['photo'], 7, true) : ''],
         db()->query("SELECT i.id, i.logement_id, i.description, i.photo, i.cout, i.statut, i.proprio_statut, i.created_at FROM c_incidents i WHERE i.logement_id IN ($in_) AND (i.statut = 'ouvert' OR i.created_at >= CURDATE() - INTERVAL 90 DAY) ORDER BY i.created_at DESC")->fetchAll());
-      c_out(['proprietaire' => $p['nom'], 'agence' => AG_NOM, 'logements' => $L, 'reservations' => $R, 'missions' => $M, 'incidents' => $I]);
+      $A = db()->query("SELECT logement_id, ROUND(AVG(proprete), 1) proprete, ROUND(AVG(logement), 1) logement, ROUND(AVG(accueil), 1) accueil, COUNT(*) n FROM c_avis WHERE logement_id IN ($in_) AND created_at >= CURDATE() - INTERVAL 180 DAY GROUP BY logement_id")->fetchAll();
+      $C = db()->query("SELECT logement_id, commentaire, created_at FROM c_avis WHERE logement_id IN ($in_) AND commentaire <> '' ORDER BY created_at DESC LIMIT 10")->fetchAll();
+      c_out(['proprietaire' => $p['nom'], 'agence' => AG_NOM, 'logements' => $L, 'reservations' => $R, 'missions' => $M, 'incidents' => $I, 'notes' => $A, 'commentaires' => $C]);
 
     case 'prop_valider':
       limite('prop', 60, 600); $p = cz_proprietaire_par_jeton((string)($in['t'] ?? '')) ?: c_fail('Ce lien n\'est plus valable.', 404);

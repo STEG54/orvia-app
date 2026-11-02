@@ -10,6 +10,8 @@ const MIGRATIONS = [
   2 => 'Documents de l\'agence : table docs_lpi renommée docs_agence',
   3 => 'Code d\'accès des intervenants : réglage code_lpi renommé code_agence',
   4 => 'ORVIA : logements, propriétaires, réservations, fiches voyageurs, missions et incidents',
+  5 => 'ORVIA : arrivée des voyageurs, tâches du gestionnaire, avis, lien de mission, position, services à l\'arrivée',
+  6 => 'ORVIA : livret d\'arrivée (position fixée, repère, étapes en photos, Wi-Fi)',
 ];
 
 function mig_derniere(): int { return (int)array_key_last(MIGRATIONS); }
@@ -80,4 +82,33 @@ function mig_4(PDO $pdo): void {
   $pdo->exec("CREATE TABLE IF NOT EXISTS `{$p}c_incidents` (id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY, logement_id INT UNSIGNED NOT NULL, mission_id INT UNSIGNED DEFAULT NULL, auteur VARCHAR(160) NOT NULL DEFAULT '',
     description VARCHAR(1000) NOT NULL, photo CHAR(32) DEFAULT NULL, bloquant TINYINT(1) NOT NULL DEFAULT 0, statut VARCHAR(10) NOT NULL DEFAULT 'ouvert', cout DECIMAL(10,2) DEFAULT NULL,
     proprio_statut VARCHAR(10) NOT NULL DEFAULT '', proprio_le DATETIME DEFAULT NULL, created_at DATETIME NOT NULL, clos_at DATETIME DEFAULT NULL, KEY logement (logement_id, statut)) $E");
+}
+function mig_5(PDO $pdo): void {
+  $p = function_exists('demo_prefixe') ? demo_prefixe() : ''; $E = 'ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci';
+  $col = function (string $t, string $c, string $def) use ($pdo, $p) { $st = $pdo->prepare("SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?"); $st->execute([$p . $t, $c]);
+    if (!(int)$st->fetchColumn()) $pdo->exec("ALTER TABLE `{$p}$t` ADD COLUMN $c $def"); };
+  $col('c_reservations', 'arrivee_mode', "VARCHAR(10) NOT NULL DEFAULT ''");
+  $col('c_reservations', 'vol', "VARCHAR(12) NOT NULL DEFAULT ''");
+  $col('c_reservations', 'arrivee_heure', "VARCHAR(5) NOT NULL DEFAULT ''");
+  $col('c_reservations', 'whatsapp_enc', 'TEXT');
+  $col('c_missions', 'admin_id', 'INT UNSIGNED DEFAULT NULL');
+  $col('c_missions', 'duree', 'SMALLINT UNSIGNED NOT NULL DEFAULT 0');
+  $col('c_missions', 'lien_hash', 'CHAR(64) DEFAULT NULL');
+  foreach (['debut', 'fin'] as $k) { $col('c_missions', $k . '_lat', 'DECIMAL(9,6) DEFAULT NULL'); $col('c_missions', $k . '_lng', 'DECIMAL(9,6) DEFAULT NULL'); $col('c_missions', $k . '_dist', 'INT DEFAULT NULL'); }
+  $col('c_logements', 'lat', 'DECIMAL(9,6) DEFAULT NULL'); $col('c_logements', 'lng', 'DECIMAL(9,6) DEFAULT NULL');
+  $pdo->exec("CREATE TABLE IF NOT EXISTS `{$p}c_avis` (id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY, reservation_id INT UNSIGNED NOT NULL, logement_id INT UNSIGNED NOT NULL, moment VARCHAR(8) NOT NULL,
+    proprete TINYINT UNSIGNED DEFAULT NULL, logement TINYINT UNSIGNED DEFAULT NULL, accueil TINYINT UNSIGNED DEFAULT NULL, commentaire VARCHAR(1000) NOT NULL DEFAULT '', photo CHAR(32) DEFAULT NULL,
+    mission_id INT UNSIGNED DEFAULT NULL, animatrice_id INT UNSIGNED DEFAULT NULL, created_at DATETIME NOT NULL, UNIQUE KEY un (reservation_id, moment), KEY logement (logement_id), KEY agent (animatrice_id)) $E");
+  $pdo->exec("CREATE TABLE IF NOT EXISTS `{$p}c_services` (id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY, nom VARCHAR(120) NOT NULL, nom_en VARCHAR(120) NOT NULL DEFAULT '', nom_ar VARCHAR(120) NOT NULL DEFAULT '',
+    description VARCHAR(300) NOT NULL DEFAULT '', prix DECIMAL(10,2) NOT NULL DEFAULT 0, cout DECIMAL(10,2) NOT NULL DEFAULT 0, delai_h SMALLINT UNSIGNED NOT NULL DEFAULT 24, actif TINYINT(1) NOT NULL DEFAULT 1, ordre SMALLINT NOT NULL DEFAULT 0, created_at DATETIME NOT NULL) $E");
+  $pdo->exec("CREATE TABLE IF NOT EXISTS `{$p}c_commandes` (id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY, reservation_id INT UNSIGNED NOT NULL, service_id INT UNSIGNED NOT NULL, quantite SMALLINT UNSIGNED NOT NULL DEFAULT 1,
+    prix DECIMAL(10,2) NOT NULL, cout DECIMAL(10,2) NOT NULL, statut VARCHAR(10) NOT NULL DEFAULT 'demandee', mission_id INT UNSIGNED DEFAULT NULL, created_at DATETIME NOT NULL, KEY reservation_id (reservation_id), KEY mois (created_at)) $E");
+}
+
+function mig_6(PDO $pdo): void {
+  $p = function_exists('demo_prefixe') ? demo_prefixe() : '';
+  foreach (['livret_enc' => 'TEXT', 'pos_fixe' => 'TINYINT(1) NOT NULL DEFAULT 0'] as $c => $def) {
+    $st = $pdo->prepare("SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?"); $st->execute([$p . 'c_logements', $c]);
+    if (!(int)$st->fetchColumn()) $pdo->exec("ALTER TABLE `{$p}c_logements` ADD COLUMN $c $def");
+  }
 }

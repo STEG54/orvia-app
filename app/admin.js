@@ -73,15 +73,15 @@ async function vInscription(o){
     catch(e) { toast(e.message); b.disabled = false; if (e.status === 401) vLogin(); } };
 }
 // Tableau de bord : seuls les deux grands boutons Reporting et Administration au-dessus.
-const surDash = () => A.tab === "gestion" && typeof G !== "undefined" && G.sub === "tableau" && !G.ed;
+const surDash = () => false; // ORVIA : l'écran « Aujourd'hui » remplace le tableau de bord d'Amaya
 function shell(inner){
   const dash = surDash(), adm = estAdm(A.tab) && !dash, peut = !!(A.L.moi || {}).gestion;
-  const sec = peut ? `<div class="secs"><button data-sec="rep" aria-current="${!adm && !dash}"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>Reporting</button><button data-sec="adm" aria-current="${adm}"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M8 13h8"/></svg>Administration</button></div>` : "";
-  const row = adm ? ADM_SUBS.map(([k, l]) => { const on = ADM_TABS.includes(k) ? A.tab === k : A.tab === "gestion" && (typeof G !== "undefined" && G.sub === k);
+  // ORVIA : un seul espace (Administration). L'espace « Reporting » d'Amaya (comptes rendus d'animation) n'est pas proposé.
+  const sec = "";
+  const row = (adm || peut) ? ADM_SUBS.map(([k, l]) => { const on = ADM_TABS.includes(k) ? A.tab === k : A.tab === "gestion" && (typeof G !== "undefined" && G.sub === k);
       return `<button data-asub="${k}" aria-current="${on ? "page" : "false"}">${l}</button>`; }).join("")
     : TABS().filter(t => !estAdm(t[0])).map(([k,l]) => `<button data-tab="${k}" aria-current="${A.tab===k?"page":"false"}">${l}</button>`).join("");
-  if (dash) return `${sec}${inner}`;
-  return `${sec}${peut ? `<button class="dash-back" data-dash>‹ Tableau de bord</button>` : ""}<div class="tabs">${row}</div>${inner}`;
+  return `${sec}<div class="tabs">${row}</div>${inner}`;
 }
 function bindShell(){
   document.querySelectorAll("[data-tab]").forEach(b => b.onclick = () => go(b.dataset.tab));

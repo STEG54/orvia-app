@@ -5,12 +5,12 @@ const CZT = {
     a_faire:"À faire", en_cours:"En cours", faite:"Terminée", refusee:"À reprendre", ouvrir:"Ouvrir", retour:"‹ Mes missions", acces:"Accès", linge:"Linge à poser", photos:"photo(s) demandée(s)",
     prendre:"Prendre une photo", valider:"Pièce terminée", rouvrir:"Rouvrir", terminer:"Terminer la mission", manque:"Il reste à faire :", signaler:"Signaler un problème", decrire:"Décrivez le problème",
     bloquant:"Le logement ne peut pas accueillir de voyageurs", envoyer:"Envoyer", annuler:"Annuler", merci:"Mission terminée. Merci !", attente:"photo(s) en attente de réseau", docs:"Mes documents", fiche:"Ma fiche",
-    signale:"Problème signalé à la conciergerie.", consigne:"Consigne", envoi:"Envoi…", langue:"العربية"},
+    signale:"Problème signalé à la conciergerie.", consigne:"Consigne", envoi:"Envoi…", langue:"العربية", maps:"Itinéraire", repere:"Repère", chemin:"Le chemin", code:"Code", jarrive:"J'arrive", commence:"Mission commencée", pos:"Votre position est relevée seulement quand vous appuyez sur « J'arrive » et « Terminer la mission »."},
   ar:{bonjour:"مرحبا", missions:"المهام ديالي", aucune:"ما كاين حتى مهمة دابا.", auj:"اليوم", retard:"متأخرة", menage:"التنظيف", controle:"المراقبة", maintenance:"الصيانة",
     a_faire:"باقي", en_cours:"جارية", faite:"سالات", refusee:"خاصها تعاود", ouvrir:"حل", retour:"‹ المهام ديالي", acces:"الدخول", linge:"الفراش اللي خاصو يتحط", photos:"تصاور مطلوبين",
     prendre:"خود تصويرة", valider:"البيت سالا", rouvrir:"عاود حل", terminer:"سالي المهمة", manque:"باقي خاصك تدير:", signaler:"علّم على مشكل", decrire:"شرح المشكل",
     bloquant:"السكن ما يقدرش يستقبل الضيوف", envoyer:"صيفط", annuler:"إلغاء", merci:"المهمة سالات. شكرا!", attente:"تصاور كيتسناو الريزو", docs:"الوثائق ديالي", fiche:"البطاقة ديالي",
-    signale:"المشكل وصل للكونسيرجري.", consigne:"التعليمات", envoi:"كيتصيفط…", langue:"Français"}
+    signale:"المشكل وصل للكونسيرجري.", consigne:"التعليمات", envoi:"كيتصيفط…", langue:"Français", maps:"الطريق", repere:"علامة", chemin:"الطريق للدار", code:"الكود", jarrive:"وصلت", commence:"المهمة بدات", pos:"البلاصة ديالك كاتتسجل غير ملي كاتضغط على «وصلت» و«سالي المهمة»."}
 };
 let CZL = (() => { try { return localStorage.getItem("orvia-agent-l") || "fr"; } catch(e) { return "fr"; } })();
 const czt = k => (CZT[CZL] || CZT.fr)[k] || k;
@@ -59,17 +59,21 @@ async function czHome(){
 }
 
 /* ---------- Une mission ---------- */
+const czPos = () => new Promise(ok => { if (!navigator.geolocation) return ok({}); navigator.geolocation.getCurrentPosition(p => ok({lat:p.coords.latitude, lng:p.coords.longitude}), () => ok({}), {enableHighAccuracy:true, timeout:10000, maximumAge:60000}); });
 async function czOuvrir(id){
   try { CZA.m = (await czaapi("ma_mission", null, "id=" + id)).mission; } catch(e) { return toast(e.reseau ? "Pas de réseau." : e.message); }
   S.view = "czm"; czMis();
-  if (CZA.m.statut === "a_faire") czaapi("mission_debut", {id}).catch(() => {});
 }
 function czMis(){
   czaDir(); const m = CZA.m, fini = m.statut === "faite";
   $("#view").innerHTML = `<button class="btn ghost" id="czb">${czt("retour")}</button>
     <div class="card"><h2 style="margin:0">${esc(m.logement)}</h2><div class="muted">${esc(czt(m.type))} · ${esc(czaD(m.date))}${m.heure ? " · " + esc(m.heure) : ""}</div><div class="muted">${esc(m.adresse)} ${esc(m.ville)}</div>
       ${m.note ? `<div><b>${czt("consigne")} :</b> ${esc(m.note)}</div>` : ""}${m.acces ? `<details><summary><b>${czt("acces")}</b></summary><div style="white-space:pre-line">${esc(m.acces)}</div></details>` : ""}
-      ${m.kit_linge ? `<div><b>${czt("linge")} :</b> ${esc(m.kit_linge)}</div>` : ""}</div>
+      ${m.kit_linge ? `<div><b>${czt("linge")} :</b> ${esc(m.kit_linge)}</div>` : ""}
+      ${(() => { const V = m.livret || {}; return `${V.carte && V.carte.maps ? `<div style="display:flex;gap:8px;flex-wrap:wrap"><a class="btn" href="${esc(V.carte.maps)}" target="_blank" rel="noopener">${czt("maps")}</a><a class="btn ghost" href="${esc(V.carte.waze)}" target="_blank" rel="noopener">Waze</a></div>` : ""}
+        ${V.repere ? `<div><b>${czt("repere")} :</b> ${esc(V.repere)}</div>` : ""}${(V.etapes || []).length ? `<details><summary><b>${czt("chemin")}</b></summary>${V.etapes.map((e, i) => `<div style="margin-top:8px">${e.photo ? `<img src="${esc(e.photo)}" alt="" loading="lazy" style="width:100%;max-height:260px;object-fit:cover;display:block">` : ""}<div>${i + 1}. ${esc(e.texte)}</div></div>`).join("")}</details>` : ""}
+        ${V.code ? `<div><b>${czt("code")} :</b> ${esc(V.code)}${V.serrure ? ` · ${esc(V.serrure)}` : ""}</div>` : ""}`; })()}</div>
+    ${fini ? "" : m.commence ? `<div class="card"><span class="pill p-ok">${czt("commence")}</span></div>` : `<div class="card" style="display:grid;gap:8px"><button class="primary" id="czgo" style="width:100%;padding:16px">${czt("jarrive")}</button><div class="hint">${czt("pos")}</div></div>`}
     ${m.pieces.map((p, i) => `<div class="card" style="display:grid;gap:8px"><div style="display:flex;justify-content:space-between;gap:8px"><b>${esc(p.piece)}</b>${p.ok ? `<span class="pill p-ok">✓</span>` : `<span class="pill">${p.urls.length}/${p.photos}</span>`}</div>
       ${p.consignes ? `<div class="hint">${esc(p.consignes)}</div>` : ""}<div class="hint">${p.photos} ${czt("photos")}</div>
       <div style="display:flex;gap:6px;flex-wrap:wrap">${p.urls.map(u => `<img src="${esc(u)}" alt="" style="width:76px;height:76px;object-fit:cover">`).join("")}</div>
@@ -86,7 +90,8 @@ function czMis(){
     czOuvrir(m.id);
   });
   document.querySelectorAll("[data-ok]").forEach(b => b.onclick = async () => { try { await czaapi("mission_piece", {id:m.id, piece:+b.dataset.ok, ok:+b.dataset.v === 1}); czOuvrir(m.id); } catch(e) { toast(e.message); } });
-  if ($("#czt")) $("#czt").onclick = async () => { try { const r = await czaapi("mission_terminer", {id:m.id}); if (r.ok === false) return toast(czt("manque") + " " + r.manques.join(", ")); toast(czt("merci")); czOuvrir(m.id); } catch(e) { toast(e.message); } };
+  if ($("#czgo")) $("#czgo").onclick = async e => { e.target.disabled = true; const p = await czPos(); try { await czaapi("mission_debut", Object.assign({id:m.id}, p)); czOuvrir(m.id); } catch(x) { toast(x.message); e.target.disabled = false; } };
+  if ($("#czt")) $("#czt").onclick = async () => { const p = await czPos(); try { const r = await czaapi("mission_terminer", Object.assign({id:m.id}, p)); if (r.ok === false) return toast(czt("manque") + " " + r.manques.join(", ")); toast(czt("merci")); czOuvrir(m.id); } catch(e) { toast(e.message); } };
   $("#czs").onclick = () => {
     $("#view").insertAdjacentHTML("beforeend", `<div class="card accent" id="czsf" style="display:grid;gap:10px"><b>${czt("signaler")}</b><textarea id="czsd" rows="3" placeholder="${esc(czt("decrire"))}"></textarea>
       <label class="btn" style="cursor:pointer">${czt("prendre")}<input type="file" accept="image/*" capture="environment" id="czsp" hidden></label>

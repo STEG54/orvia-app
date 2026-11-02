@@ -34,7 +34,7 @@ function demo_inscrire(array $in): void {
   demo_base(fn() => db()->prepare("INSERT INTO demo_leads (prenom, nom, agence, email, telephone, equipe, metier, jeton, ip, created_at) VALUES (?,?,?,?,?,?,?,?,?,?)")->execute([...array_values($L), hash('sha256', $jeton), $ip, now()]));
   $lien = rtrim((string)(defined('BASE_URL') ? BASE_URL : ''), '/') . '/demo.php?acces=' . $jeton;
   $css = 'font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#16123A;line-height:1.55';
-  if (!demo_mail($L['email'], 'Votre démo Amaya est prête', '<div style="' . $css . '"><p>Bonjour ' . h($L['prenom']) . ',</p><p>Votre agence de démonstration Amaya vous attend. Elle est à vous seul(e) pendant ' . DEMO_JOURS . ' jours : ce que vous y saisissez n\'est visible par personne d\'autre.</p>'
+  if (!demo_mail($L['email'], 'Votre démo ' . PRODUIT_NOM . ' est prête', '<div style="' . $css . '"><p>Bonjour ' . h($L['prenom']) . ',</p><p>Votre conciergerie de démonstration ' . PRODUIT_NOM . ' vous attend. Elle est à vous seul(e) pendant ' . DEMO_JOURS . ' jours : ce que vous y saisissez n\'est visible par personne d\'autre.</p>'
     . '<p><a href="' . h($lien) . '" style="display:inline-block;background:#6A4BFF;color:#fff;padding:12px 20px;border-radius:10px;text-decoration:none;font-weight:bold">Ouvrir ma démo</a></p><p style="color:#6E6A8F;font-size:13px">Ce lien est personnel. Si le bouton ne marche pas, copiez cette adresse : ' . h($lien) . '</p></div>'))
     throw new RuntimeException('L\'e-mail n\'a pas pu partir. Vérifiez votre adresse ou réessayez dans un instant.');
   $pour = defined('AMAYA_LEADS') ? AMAYA_LEADS : AG_EMAIL;
@@ -130,7 +130,7 @@ function demo_seed(): void {
   $pdo = db(); g_schema(); p_schema(); c_schema(); r_schema(); require_once __DIR__ . '/geo_lib.php'; geo_schema(); $GLOBALS['GEO_MAX'] = 0;
   $_SESSION['admin_nom'] = DEMO_DIRIGEANT['nom'];
   $set = $pdo->prepare("REPLACE INTO g_reglages (cle, valeur) VALUES (?, ?)");
-  $modele = "Article 1 - Texte de démonstration\nDans Amaya, chaque agence colle ici son propre contrat, rédigé ou validé par son avocat. Ce texte fictif sert seulement à montrer le fonctionnement.\n\nArticle 2 - Engagement\n{Salarie} est engagé{e} en qualité de {emploi} pour l'opération « {operation} » de la société {client}.\n\nArticle 3 - Durée\nLe présent contrat, {duree}\n\nArticle 4 - Horaires et rémunération\nTaux horaire brut : {taux}. Les journées sont les suivantes :\n{horaires}\n\n{frais}";
+  $modele = "Article 1 - Texte de démonstration\nDans ' . PRODUIT_NOM . ', chaque agence colle ici son propre contrat, rédigé ou validé par son avocat. Ce texte fictif sert seulement à montrer le fonctionnement.\n\nArticle 2 - Engagement\n{Salarie} est engagé{e} en qualité de {emploi} pour l'opération « {operation} » de la société {client}.\n\nArticle 3 - Durée\nLe présent contrat, {duree}\n\nArticle 4 - Horaires et rémunération\nTaux horaire brut : {taux}. Les journées sont les suivantes :\n{horaires}\n\n{frais}";
   foreach (['societe' => AG_NOM, 'adresse' => "12 rue de la Démo\n69002 Lyon", 'telephone' => '04 00 00 00 00', 'email' => AG_EMAIL, 'siret' => '000 000 000 00000', 'contact' => DEMO_DIRIGEANT['nom'],
     'signataire' => DEMO_DIRIGEANT['nom'], 'banque' => 'Banque de démonstration', 'iban' => 'FR76 3000 6000 0112 3456 7890 189', 'bic' => 'AGRIFRPP',
     'ct_representant' => DEMO_DIRIGEANT['nom'], 'ct_qualite' => 'Gérant', 'ct_lieu' => 'Lyon', 'ct_urssaf' => 'Rhône-Alpes', 'ct_caisse' => 'Caisse de prévoyance (fictive)', 'ct_retraite' => 'Caisse de retraite (fictive)',
@@ -399,6 +399,7 @@ function demo_seed(): void {
   foreach ([[0, 'parking', 12.5, 'Parking centre commercial'], [3, 'transport', 4.2, 'Ticket de tram'], [17, 'repas', 14.9, 'Déjeuner sur le salon']] as [$x, $type, $mt, $com])
     $pdo->prepare("INSERT INTO ndf (animatrice_id, jour, type, montant, devis_id, commentaire, statut, created_at) VALUES (?,?,?,?,?,?,'a_valider',?)")->execute([$A[$x], demo_j(-2), $type, $mt, $ops[0]['id'], $com, now()]);
   foreach ($A as $i => $aid) foreach (range(1, 14) as $j) if (($i + $j) % 4) $pdo->prepare("INSERT IGNORE INTO dispos (animatrice_id, jour, etat, modifie_le) VALUES (?,?,?,?)")->execute([$aid, demo_j($j), ($i + $j) % 5 ? 'o' : 'n', now()]);
+  require_once __DIR__ . '/demo_conciergerie.php'; cz_demo_seed(); // ORVIA : conciergerie fictive au Maroc
   unset($_SESSION['admin_nom']);
 }
 
@@ -409,12 +410,17 @@ function demo_entrer(string $role): string {
   foreach (['admin', 'admin_id', 'admin_email', 'admin_nom', 'droits', 'anim', 'client_id', 'client_apercu'] as $k) unset($_SESSION[$k]);
   $_SESSION['demo_p'] = $p; $_SESSION['demo_lead'] = $lead;
   if ($role === 'equipe') {
+    // ORVIA : de préférence l'agent qui a une mission aujourd'hui.
+    try { $c = (int)$pdo->query("SELECT animatrice_id FROM c_missions WHERE animatrice_id IS NOT NULL AND date >= CURDATE() ORDER BY date, id LIMIT 1")->fetchColumn(); if ($c) { $_SESSION['anim'] = $c; return 'index.php'; } } catch (Throwable $e) {}
     // De préférence une personne qui a une mission à venir et un rapport d'événement à rédiger (hôtessariat des 30 derniers jours).
     $id = (int)$pdo->query("SELECT m.animatrice_id FROM missions m WHERE m.animatrice_id IS NOT NULL AND m.date_mission >= CURDATE() AND m.animatrice_id IN (SELECT m2.animatrice_id FROM missions m2 JOIN g_docs d ON d.id = m2.devis_id
       WHERE d.pole = 'hot' AND m2.date_mission BETWEEN CURDATE() - INTERVAL 30 DAY AND CURDATE() - INTERVAL 1 DAY AND m2.animatrice_id NOT IN (SELECT animatrice_id FROM evenements_cr))
       ORDER BY EXISTS (SELECT 1 FROM missions m3 JOIN g_docs d3 ON d3.id = m3.devis_id WHERE m3.animatrice_id = m.animatrice_id AND m3.date_mission = CURDATE() AND d3.type_op LIKE 'Merchandising%') DESC, m.date_mission, m.id LIMIT 1")->fetchColumn()
       ?: (int)$pdo->query("SELECT animatrice_id FROM missions WHERE animatrice_id IS NOT NULL AND date_mission >= CURDATE() ORDER BY date_mission, id LIMIT 1")->fetchColumn();
     $_SESSION['anim'] = $id ?: (int)$pdo->query("SELECT id FROM animatrices WHERE statut = 'actif' ORDER BY id LIMIT 1")->fetchColumn(); return 'index.php'; }
+  if ($role === 'proprietaire') {
+    require_once __DIR__ . '/conciergerie_lib.php'; $t = cz_jeton(); $pid = (int)$pdo->query("SELECT id FROM c_proprietaires ORDER BY id LIMIT 1")->fetchColumn();
+    $pdo->prepare("UPDATE c_proprietaires SET jeton_hash = ? WHERE id = ?")->execute([cz_hash($t), $pid]); return 'proprietaire.php#' . $t; }
   if ($role === 'marque') { $_SESSION['client_id'] = (int)$pdo->query("SELECT id FROM comptes_clients ORDER BY id LIMIT 1")->fetchColumn(); return 'marques.php'; }
   $a = $pdo->query("SELECT * FROM admins WHERE email = " . $pdo->quote(DEMO_DIRIGEANT['email']))->fetch(); tf_schema();
   admin_ouvrir($a, ['tout']); return 'admin.php';

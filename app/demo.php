@@ -22,7 +22,7 @@ if (isset($_GET['tel']) && preg_match('/^(\d+)-([a-f0-9]{24})$/', (string)$_GET[
 // Préparation de l'agence fictive (appelée par la page, environ 15 secondes).
 if (isset($_GET['prep'])) { header('Content-Type: application/json'); if (!$lead) { http_response_code(401); echo '{}'; exit; } try { demo_creer($lead); echo '{"ok":true}'; } catch (Throwable $e) { error_log('Amaya démo : ' . $e->getMessage()); http_response_code(500); echo '{"ok":false}'; } exit; }
 $role = (string)($_GET['role'] ?? '');
-if ($lead && demo_prete($lead) && in_array($role, ['direction', 'equipe', 'marque'], true)) { header('Location: ' . demo_entrer($role)); exit; }
+if ($lead && demo_prete($lead) && in_array($role, ['direction', 'equipe', 'proprietaire', 'marque'], true)) { header('Location: ' . demo_entrer($role)); exit; }
 if (isset($_GET['sortir'])) { unset($_SESSION['demo_p'], $_SESSION['demo_lead']); header('Location: demo.php'); exit; }
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   if (trim((string)($_POST['site'] ?? '')) !== '') { $etat = 'envoye'; } // champ piège : robots
@@ -35,7 +35,7 @@ $v = fn($k) => h((string)($_POST[$k] ?? ''));
 <html lang="fr">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex, nofollow">
-<title>Démo Amaya</title>
+<title>Démo <?= h(PRODUIT_NOM) ?></title>
 <link rel="icon" type="image/png" href="assets/favicon-32.png">
 <link rel="stylesheet" href="style.css?v=<?= filemtime(__DIR__ . '/style.css') ?>">
 <?= ag_style() ?>
@@ -74,7 +74,7 @@ body{min-height:100vh}
 </head>
 <body>
 <main class="dm">
-  <div class="dm-h"><img src="assets/logo-amaya.png?v=<?= @filemtime(__DIR__ . '/assets/logo-amaya.png') ?>" alt="Amaya"><?php if (defined('AMAYA_SITE') && AMAYA_SITE): ?><a href="<?= h(AMAYA_SITE) ?>">Retour au site</a><?php endif; ?></div>
+  <div class="dm-h"><img src="assets/logo-produit.png?v=<?= @filemtime(__DIR__ . '/assets/logo-produit.png') ?>" alt="<?= h(PRODUIT_NOM) ?>"><?php if (defined('AMAYA_SITE') && AMAYA_SITE): ?><a href="<?= h(AMAYA_SITE) ?>">Retour au site</a><?php endif; ?></div>
 <?php if ($etat === 'envoye'): ?>
   <div class="dm-ok"><h1 style="font-size:36px">Regardez vos e-mails.</h1>
     <p class="dm-lead" style="margin:12px 0 0">Nous venons de vous envoyer le lien de votre démo personnelle. Ouvrez-le pour entrer dans votre agence fictive. Pensez à regarder dans les indésirables si rien n'arrive d'ici quelques minutes.</p></div>
@@ -84,26 +84,26 @@ body{min-height:100vh}
   <script>fetch("demo.php?prep=1", {credentials:"same-origin"}).then(r => { if (!r.ok) throw 0; location.reload(); }).catch(() => { document.getElementById("prep").innerHTML = "<h1 style='font-size:32px'>La préparation n'a pas abouti.</h1><p class='dm-lead'>Rechargez la page pour réessayer.</p>"; });</script>
 <?php elseif ($pret):
   $url = (defined('BASE_URL') ? rtrim(BASE_URL, '/') : '') . '/demo.php?tel=' . $telLien($lead); ?>
-  <h1>Votre agence de démonstration.</h1>
+  <h1>Votre conciergerie de démonstration.</h1>
   <p class="dm-lead">Elle est à vous seul(e) pendant <?= DEMO_JOURS ?> jours : testez tout, saisissez ce que vous voulez, personne d'autre ne le voit. Choisissez votre point de vue, vous pourrez en changer à tout moment.</p>
   <div class="dm-g">
-    <section class="dm-c main"><h2>Je dirige l'agence</h2><p>Le tableau de bord, les devis, le planning, les contrats, la paye et les virements.</p>
-      <ul><li>Créer un devis et l'envoyer</li><li>Pourvoir un créneau en un clic</li><li>Préparer la paye du mois</li></ul>
+    <section class="dm-c main"><h2>Je dirige la conciergerie</h2><p>Les arrivées du jour, les réservations, les missions, les logements, les signalements et les propriétaires.</p>
+      <ul><li>Voir le feu vert de chaque arrivée</li><li>Consulter les fiches voyageurs</li><li>Ajouter un logement et son calendrier</li></ul>
       <a class="btn" href="demo.php?role=direction">Entrer comme dirigeant</a></section>
-    <section class="dm-c"><h2>Je suis sur le terrain</h2><p>L'appli de l'intervenant(e), en animation, en hôtessariat ou en merchandising, pensée pour le téléphone.</p>
-      <ul><li>Mes missions et ma prise de poste</li><li>Signer mon contrat</li><li>Rapport d'événement, compte rendu ou visite merchandising (scan des gencods)</li></ul>
+    <section class="dm-c"><h2>Je suis sur le terrain</h2><p>L'appli de l'équipe, en français ou en arabe, pensée pour le téléphone.</p>
+      <ul><li>Mes missions du jour</li><li>Les photos de chaque pièce</li><li>Signaler un problème</li></ul>
       <div class="dm-qr"><div id="qr"></div><span>Scannez avec votre téléphone pour la vivre en vrai.</span></div>
       <a class="btn" href="demo.php?role=equipe">Ouvrir ici</a></section>
-    <section class="dm-c"><h2>Je suis la marque</h2><p>L'espace client : rapports d'événement, d'animation et de merchandising, photos et devis à valider.</p>
-      <ul><li>Voir les événements et les photos</li><li>Suivre visiteurs, contacts et ventes</li><li>Valider un devis en ligne</li></ul>
-      <a class="btn" href="demo.php?role=marque">Entrer comme marque</a></section>
+    <section class="dm-c"><h2>Je suis propriétaire</h2><p>L'espace du propriétaire : ses séjours, les interventions en photos, les dépenses à valider.</p>
+      <ul><li>Suivre les séjours</li><li>Voir les photos du ménage</li><li>Accepter une dépense</li></ul>
+      <a class="btn" href="demo.php?role=proprietaire">Entrer comme propriétaire</a></section>
   </div>
-  <p class="dm-f">Agence, personnes, marques et chiffres sont fictifs. Les e-mails, notifications et réglages de sécurité sont désactivés dans la démo. <a href="demo.php?sortir=1">Quitter la démo</a></p>
+  <p class="dm-f">Conciergerie, logements, personnes et chiffres sont fictifs. Les e-mails, notifications et réglages de sécurité sont désactivés dans la démo. <a href="demo.php?sortir=1">Quitter la démo</a></p>
   <script src="assets/qrcode.js"></script>
   <script>try { const q = qrcode(0, "M"); q.addData(<?= json_encode($url) ?>); q.make(); document.getElementById("qr").innerHTML = q.createSvgTag({cellSize:3, margin:0}); } catch (e) {}</script>
 <?php else: ?>
   <div class="dm-form">
-    <div><h1>Votre démo Amaya, rien que pour vous.</h1>
+    <div><h1>Votre démo <?= h(PRODUIT_NOM) ?>, rien que pour vous.</h1>
       <p class="dm-lead">Laissez vos coordonnées : vous recevez par e-mail l'accès à votre propre agence fictive, déjà remplie. Elle est à vous seul(e) pendant <?= DEMO_JOURS ?> jours.</p>
       <ul><li>Le tableau de bord du dirigeant, le planning, les contrats, la paye</li><li>L'appli de vos intervenants, sur votre téléphone</li><li>L'espace de vos clients, les marques</li><li>Ce que vous saisissez reste privé</li></ul></div>
     <form method="post" action="demo.php" novalidate>
@@ -114,7 +114,7 @@ body{min-height:100vh}
       <div class="row"><label>Taille de votre équipe<select name="equipe" id="d-equipe"><?php foreach (['' => 'Choisir…', '1-30' => 'Jusqu\'à 30 intervenants', '31-100' => '31 à 100', '101-300' => '101 à 300', '300+' => 'Plus de 300'] as $k => $l): ?><option value="<?= h($k) ?>" <?= ($_POST['equipe'] ?? '') === $k ? 'selected' : '' ?>><?= h($l) ?></option><?php endforeach; ?></select></label>
         <label>Votre métier<select name="metier" id="d-metier"><?php foreach (['' => 'Choisir…', 'animation' => 'Animation commerciale', 'accueil' => 'Accueil et hôtessariat', 'les deux' => 'Les deux'] as $k => $l): ?><option value="<?= h($k) ?>" <?= ($_POST['metier'] ?? '') === $k ? 'selected' : '' ?>><?= h($l) ?></option><?php endforeach; ?></select></label></div>
       <label class="hp" aria-hidden="true">Site<input name="site" tabindex="-1" autocomplete="off"></label>
-      <label class="ck"><input type="checkbox" name="rgpd" id="d-rgpd" value="1" <?= !empty($_POST['rgpd']) ? 'checked' : '' ?>><span>J'accepte d'être recontacté(e) au sujet d'Amaya. Mes coordonnées ne sont jamais revendues.<?php if (defined('AMAYA_SITE') && AMAYA_SITE): ?> <a href="<?= h(rtrim((string)AMAYA_SITE, '/')) ?>/confidentialite.html" target="_blank" rel="noopener">Confidentialité</a><?php endif; ?></span></label>
+      <label class="ck"><input type="checkbox" name="rgpd" id="d-rgpd" value="1" <?= !empty($_POST['rgpd']) ? 'checked' : '' ?>><span>J'accepte d'être recontacté(e) au sujet de <?= h(PRODUIT_NOM) ?>. Mes coordonnées ne sont jamais revendues.<?php if (defined('AMAYA_SITE') && AMAYA_SITE): ?> <a href="<?= h(rtrim((string)AMAYA_SITE, '/')) ?>/confidentialite.html" target="_blank" rel="noopener">Confidentialité</a><?php endif; ?></span></label>
       <button class="primary" type="submit">Recevoir mon accès</button>
       <p class="hint">Déjà inscrit(e) ? Ouvrez le lien reçu par e-mail.</p>
     </form>

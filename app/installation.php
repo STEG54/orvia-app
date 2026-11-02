@@ -50,7 +50,7 @@ if (!$deja && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $ok = true;
   } catch (Throwable $e) { $err = $e->getMessage(); if (is_file("$dir/config.php") && !$ok) @unlink("$dir/config.php"); }
 }
-?><!DOCTYPE html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Installation · Amaya</title>
+?><!DOCTYPE html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Installation · <?= h(PRODUIT_NOM) ?></title>
 <link rel="icon" href="assets/favicon-32.png">
 <style>:root{--c:#6A4BFF;--t:#1A1512;--m:#7A6D62;--l:#E3D9CD;--s:#F7F4EF}*{box-sizing:border-box}body{margin:0;background:var(--s);color:var(--t);font:16px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
 .w{max-width:760px;margin:0 auto;padding:28px 16px 60px}h1{font-size:30px;margin:0 0 4px}h2{font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:var(--c);margin:26px 0 10px}
@@ -58,13 +58,13 @@ if (!$deja && $_SERVER['REQUEST_METHOD'] === 'POST') {
 input,select{width:100%;padding:11px 12px;border:1px solid var(--l);border-radius:10px;font:inherit;background:#FFFDFA}.r{display:grid;grid-template-columns:1fr 1fr;gap:12px}@media(max-width:600px){.r{grid-template-columns:1fr}}
 .h{color:var(--m);font-size:13px;font-weight:400}.e{background:#FBE3DF;border:1px solid #E9B4AA;color:#8E2A1F;padding:12px 14px;border-radius:12px;margin-top:16px}.ok{background:#E3F1E7;border:1px solid #9CCBAA;padding:14px;border-radius:12px;margin-top:16px}
 button{margin-top:20px;background:var(--c);color:#fff;border:0;border-radius:12px;padding:14px 22px;font:inherit;font-weight:600;cursor:pointer;width:100%}a{color:var(--c)}</style></head><body><div class="w">
-<h1>Amaya</h1><div class="h" style="font-size:15px">Installation pour une nouvelle agence</div>
+<h1><?= h(PRODUIT_NOM) ?></h1><div class="h" style="font-size:15px">Installation pour une nouvelle conciergerie</div>
 <?php if ($ok): ?>
   <div class="ok"><b>Installation terminée.</b><br>Connectez-vous à l'administration avec l'e-mail d'un dirigeant et le mot de passe de secours : <a href="admin.php">ouvrir l'administration</a>.<br>
   Ensuite, dans Administration › Réglages : adresse, mentions légales, banque, logo, contrats de travail.</div>
   <div class="card">Par sécurité, <b>supprimez le fichier installation.php</b> du serveur (il ne peut plus servir : il refuse de fonctionner tant que config.php existe) et <b>gardez une copie de config.php</b> en lieu sûr : il contient la clé qui protège les documents.</div>
 <?php elseif ($deja): ?>
-  <div class="card">Cette installation est déjà faite. <a href="admin.php">Ouvrir l'administration</a>. Pour une nouvelle agence, copiez Amaya dans un autre dossier, avec une autre base de données.</div>
+  <div class="card">Cette installation est déjà faite. <a href="admin.php">Ouvrir l'administration</a>. Pour une nouvelle agence, copiez <?= h(PRODUIT_NOM) ?> dans un autre dossier, avec une autre base de données.</div>
 <?php else: ?>
   <?php if ($err): ?><div class="e"><?= $h($err) ?></div><?php endif; ?>
   <form method="post" autocomplete="off"><div class="card">

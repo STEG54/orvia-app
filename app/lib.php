@@ -37,6 +37,8 @@ if (PHP_SAPI !== 'cli') {
     else { if (!headers_sent()) header('Content-Type: text/html; charset=utf-8'); echo '<!DOCTYPE html><meta charset="utf-8"><title>Erreur</title><p style="font:16px sans-serif;margin:40px auto;max-width:520px">' . htmlspecialchars($msg) . '</p>'; }
   });
 }
+// Nom du produit, affiché partout (logos : assets/logo-produit*.png, styles : marque.css). Un seul endroit à changer en cas de nouvelle marque.
+defined('PRODUIT_NOM') || define('PRODUIT_NOM', 'ORVIA');
 defined('AG_NOM') || define('AG_NOM', 'Agence'); defined('AG_COURT') || define('AG_COURT', AG_NOM); defined('AG_EMAIL') || define('AG_EMAIL', MAIL_TO_DEFAULT);
 defined('AG_COULEUR') || define('AG_COULEUR', '#6A4BFF'); defined('AG_MATRICULE') || define('AG_MATRICULE', 'AG'); defined('AG_TESTEURS') || define('AG_TESTEURS', []);
 defined('ADMINS_PRINCIPAUX') || define('ADMINS_PRINCIPAUX', []);
@@ -53,6 +55,7 @@ function demo_bloquer(string $action): void {
 }
 /** Thèmes proposés (Réglages) : fond, encre, filets, texte secondaire, couleur « pop » du dégradé. La couleur principale reste celle de l'agence. */
 const AG_THEMES = [
+  'orvia' => ['nom' => 'ORVIA (noir et blanc)', 'bg' => '#F4F3F1', 'ink' => '#0F0F0F', 'line' => '#E4E2DE', 'muted' => '#6A6864', 'pop' => '#0F0F0F', 'defaut' => '#0F0F0F'],
   'aurore' => ['nom' => 'Aurore (violet et rose)', 'bg' => '#F6F5FF', 'ink' => '#16123A', 'line' => '#E6E3F7', 'muted' => '#6E6A8F', 'pop' => '#FF5C8A', 'defaut' => '#6A4BFF'],
   'lagon' => ['nom' => 'Lagon (turquoise et mangue)', 'bg' => '#F1FAF8', 'ink' => '#0F2A2E', 'line' => '#D9EDEA', 'muted' => '#5D7A7C', 'pop' => '#FFB020', 'defaut' => '#0EA5A0'],
   'cobalt' => ['nom' => 'Cobalt (bleu et corail)', 'bg' => '#F3F6FF', 'ink' => '#0C1A3D', 'line' => '#E0E6F7', 'muted' => '#5F6B8A', 'pop' => '#FF7A45', 'defaut' => '#2F5BFF'],
@@ -60,25 +63,26 @@ const AG_THEMES = [
 ];
 /** Couleur principale : celle choisie dans Réglages, sinon celle de l'installation. */
 function ag_couleur(): string { $c = ''; try { $c = (string)reglage('couleur', ''); } catch (Throwable $e) {} if (!preg_match('/^#[0-9a-f]{6}$/i', $c)) $c = AG_COULEUR; return preg_match('/^#[0-9a-f]{6}$/i', $c) ? $c : ag_theme()['defaut']; }
-function ag_theme(): array { $k = 'aurore'; try { $k = (string)reglage('theme', 'aurore'); } catch (Throwable $e) {} return AG_THEMES[$k] ?? AG_THEMES['aurore']; }
+function ag_theme(): array { $k = 'orvia'; try { $k = (string)reglage('theme', 'orvia'); } catch (Throwable $e) {} return AG_THEMES[$k] ?? AG_THEMES['orvia']; }
 /** Dans le <head>, après style.css : polices, thème et couleur de l'agence. */
 function ag_style(): string {
   $t = ag_theme(); $c = ag_couleur();
   return '<link rel="stylesheet" href="theme.css?v=' . @filemtime(__DIR__ . '/theme.css') . '">' . "\n"
+    . '<link rel="stylesheet" href="marque.css?v=' . @filemtime(__DIR__ . '/marque.css') . '">' . "\n"
     . "<style>:root{--terra:$c;--terra-soft:color-mix(in srgb, $c 12%, #fff);--pop:{$t['pop']};--esp:{$t['ink']};--sand:{$t['bg']};--line:{$t['line']};--muted:{$t['muted']};--ok:#0C8A64;--ok-soft:#E3F8F0;--bad:#E03131;--bad-soft:#FFF0F0}</style>";
 }
 /** Bandeau de la démo : passer d'un espace à l'autre (direction, équipe, marque) et revenir au site, depuis n'importe quelle page. */
 function demo_ruban(): string {
-  $ici = ['admin.php' => 'direction', 'index.php' => 'equipe', 'marques.php' => 'marque'][basename((string)($_SERVER['SCRIPT_NAME'] ?? ''))] ?? '';
-  $l = []; foreach (['direction' => 'Direction', 'equipe' => 'Équipe terrain', 'marque' => 'Marque'] as $k => $t) $l[] = $k === $ici ? '<b aria-current="page">' . $t . '</b>' : '<a href="demo.php?role=' . $k . '">' . $t . '</a>';
-  return '<nav class="demo-ruban" aria-label="Démo Amaya"><span class="dr-t">Démo<span class="dr-l"> Amaya</span></span>' . implode('', $l)
+  $ici = ['admin.php' => 'direction', 'index.php' => 'equipe', 'proprietaire.php' => 'proprietaire'][basename((string)($_SERVER['SCRIPT_NAME'] ?? ''))] ?? '';
+  $l = []; foreach (['direction' => 'Direction', 'equipe' => 'Équipe terrain', 'proprietaire' => 'Propriétaire'] as $k => $t) $l[] = $k === $ici ? '<b aria-current="page">' . $t . '</b>' : '<a href="demo.php?role=' . $k . '">' . $t . '</a>';
+  return '<nav class="demo-ruban" aria-label="Démo ' . PRODUIT_NOM . '"><span class="dr-t">Démo<span class="dr-l"> ' . PRODUIT_NOM . '</span></span>' . implode('', $l)
     . '<a href="demo.php" class="dr-x">Accueil démo</a>' . (defined('AMAYA_SITE') && AMAYA_SITE ? '<a href="' . h((string)AMAYA_SITE) . '" class="dr-x">Retour au site</a>' : '') . '</nav>';
 }
 /** Avant les scripts : nom de l'agence pour les textes de l'appli. */
 function ag_head(): string {
-  return (demo_actif() ? demo_ruban() : '') . '<script>const AG = ' . json_encode(AG_COURT) . ', AGN = ' . json_encode(AG_NOM) . ', CONTACT = ' . json_encode(AG_EMAIL) . ', AMAYA_DEMO = ' . (demo_actif() ? 'true' : 'false') . ";</script>";
+  return (demo_actif() ? demo_ruban() : '') . '<script>const AG = ' . json_encode(AG_COURT) . ', AGN = ' . json_encode(AG_NOM) . ', CONTACT = ' . json_encode(AG_EMAIL) . ', PRODUIT = ' . json_encode(PRODUIT_NOM) . ', AMAYA_DEMO = ' . (demo_actif() ? 'true' : 'false') . ";</script>";
 }
-function ag_logo(bool $blanc = false): string { foreach ($blanc ? ['logo-agence-blanc.png', 'logo-agence.png'] : ['logo-agence.png'] as $f) if (is_file(__DIR__ . '/uploads/' . $f)) return 'uploads/' . $f; return $blanc ? 'assets/logo-amaya-blanc.png' : 'assets/logo-amaya.png'; }
+function ag_logo(bool $blanc = false): string { foreach ($blanc ? ['logo-agence-blanc.png', 'logo-agence.png'] : ['logo-agence.png'] as $f) if (is_file(__DIR__ . '/uploads/' . $f)) return 'uploads/' . $f; return $blanc ? 'assets/logo-produit-blanc.png' : 'assets/logo-produit.png'; }
 /** Logo pour l'en-tête des pages, avec la date du fichier : le navigateur recharge un logo modifié. */
 function ag_logo_url(bool $blanc = false): string { $f = ag_logo($blanc); return $f . '?v=' . @filemtime(__DIR__ . '/' . $f); }
 

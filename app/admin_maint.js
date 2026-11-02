@@ -26,7 +26,7 @@ function vMaint(){
   const mo = n => n > 1048576 ? (n / 1048576).toFixed(1).replace(".", ",") + " Mo" : Math.max(1, Math.round(n / 1024)) + " Ko";
   const M = D.derniere_maj, P = MT.paquet;
   const BZ = D.base || {};
-  return `<div class="card accent"><h2>Amaya ${esc(D.version)}</h2>${BZ.attendu ? `<div class="hint">Base de données : évolution n° ${BZ.niveau} sur ${BZ.attendu} ${BZ.a_jour ? `<span class="pill p-ok">à jour</span>` : `<span class="pill p-bad">en retard : rechargez la page</span>`}</div>` : ""}
+  return `<div class="card accent"><h2>${esc(PRODUIT)} ${esc(D.version)}</h2>${BZ.attendu ? `<div class="hint">Base de données : évolution n° ${BZ.niveau} sur ${BZ.attendu} ${BZ.a_jour ? `<span class="pill p-ok">à jour</span>` : `<span class="pill p-bad">en retard : rechargez la page</span>`}</div>` : ""}
       <div class="muted">PHP ${esc(D.php)} · ${ko(D.zip, "zip")} ${ko(D.sodium, "sodium")}${M ? ` · dernière mise à jour le ${esc(M.le)} par ${esc(M.par)} (${esc(M.de)} → ${esc(M.vers)})` : ""}</div></div>
     <div class="card"><h2>Mises à jour</h2>
       ${D.distante ? `<div class="mt-new"><b>Version ${esc(D.distante.version)} disponible</b>${D.distante.notes ? `<div class="muted">${esc(D.distante.notes)}</div>` : ""}<div class="btns"><button class="primary" id="mt-dist">Télécharger et vérifier</button></div></div>` : ""}
@@ -115,7 +115,7 @@ function bMaint(){
   if ($("#mt-dist")) $("#mt-dist").onclick = async () => { MT.busy = true; re(); try { MT.paquet = await gapi("maj_distante", {}); } catch(x) { toast(x.message); } MT.busy = false; re(); };
   if ($("#mt-x")) $("#mt-x").onclick = () => { MT.paquet = null; re(); };
   if ($("#mt-go")) $("#mt-go").onclick = async () => { MT.busy = true; re();
-    try { const r = await gapi("maj_appliquer", {}); toast("Amaya " + r.version + " installée (" + r.fichiers + " fichiers)"); setTimeout(() => location.reload(), 900); }
+    try { const r = await gapi("maj_appliquer", {}); toast(PRODUIT + " " + r.version + " installée (" + r.fichiers + " fichiers)"); setTimeout(() => location.reload(), 900); }
     catch(x) { toast(x.message); MT.busy = false; re(); } };
   if ($("#mt-xs")) $("#mt-xs").onclick = async () => { const b = $("#mt-xs"); b.disabled = true; b.textContent = "Envoi…"; try { const r = await gapi("externe_envoyer", {}); toast(`${r.bilan.fichiers} fichier(s) et ${r.bilan.base} sauvegarde(s) envoyés${r.bilan.reste ? ", " + r.bilan.reste + " restant(s)" : ""}`); MT.D = await gapi("maint"); re(); } catch(x) { toast(x.message); b.disabled = false; b.textContent = "Envoyer maintenant"; } };
   if ($("#mt-xv")) $("#mt-xv").onclick = async () => { const b = $("#mt-xv"); b.disabled = true; b.textContent = "Vérification…"; try { const r = await gapi("externe_verifier", {}); toast(r.verif.ok ? "Restauration vérifiée" : "Vérification : points à revoir"); MT.D = await gapi("maint"); re(); } catch(x) { toast(x.message); b.disabled = false; b.textContent = "Vérifier la restauration"; } };

@@ -46,4 +46,66 @@ require_once "$dir/cle_lib.php"; $types = array_count_values(array_map(fn($e) =>
 t('champs ORVIA inclus dans le changement de clé', ($types['colonnes'] ?? 0) >= 3, json_encode($types));
 t('jeton : empreinte indépendante de la clé', cz_hash('abc') === hash('sha256', 'abc'));
 
+echo "WhatsApp, lien de mission, position\n";
+t('numéro marocain 06 normalisé en 2126', cz_wa_num('06 61 23 45 67') === '212661234567', cz_wa_num('06 61 23 45 67'));
+t('numéro international conservé', cz_wa_num('+33 6 12 34 56 78') === '33612345678' && cz_wa_num('0033612345678') === '33612345678');
+t('lien wa.me avec message encodé', str_starts_with(cz_wa_lien('0661234567', 'Bonjour à vous'), 'https://wa.me/212661234567?text=Bonjour%20%C3%A0%20vous'));
+t('pas de lien sans numéro', cz_wa_lien('', 'x') === '');
+db()->prepare("INSERT INTO c_missions (logement_id, type, date, heure, statut, etat, created_at) VALUES (?, 'menage', ?, '11:00', 'a_faire', '[]', ?)")->execute([$lid, date('Y-m-d'), now()]); $mid = (int)db()->lastInsertId();
+$u = cz_mission_lien($mid); $jt = substr($u, strpos($u, '#') + 1);
+t('lien de mission : jeton long, seule son empreinte est gardée', strlen($jt) === 48 && db()->query("SELECT lien_hash FROM c_missions WHERE id = $mid")->fetchColumn() === cz_hash($jt));
+t('jeton de mission reconnu', (int)(cz_mission_par_jeton($jt)['id'] ?? 0) === $mid);
+t('jeton faux refusé', cz_mission_par_jeton(str_repeat('a', 48)) === null && cz_mission_par_jeton('') === null);
+db()->exec("UPDATE c_missions SET date = '" . date('Y-m-d', strtotime('-3 days')) . "' WHERE id = $mid");
+t('jeton expiré après la mission', cz_mission_par_jeton($jt) === null);
+db()->exec("UPDATE c_missions SET date = '" . date('Y-m-d') . "' WHERE id = $mid"); $m = cz_mission($mid);
+t('première arrivée : position du logement apprise', cz_position($m, 'debut', 31.6295, -7.9811) === 0 && db()->query("SELECT lat FROM c_logements WHERE id = $lid")->fetchColumn() !== null);
+$dl = cz_position($m, 'fin', 31.6300, -7.9811); t('départ sur place (moins de 150 m)', $dl !== null && $dl < 150, (string)$dl);
+$dl = cz_position($m, 'fin', 31.6500, -7.9811); t('départ éloigné mesuré', $dl > 2000 && str_contains(cz_position_texte($dl), 'km'), (string)$dl);
+t('position absurde ignorée', cz_position($m, 'debut', 'x', 500) === null && cz_position_texte(null) === 'position non transmise');
+
+echo "Livret d'arrivée\n";
+t('coordonnées simples lues', cz_parse_position('31.6295, -7.9811') === [31.6295, -7.9811]);
+t('lien Google Maps (@lat,lng) lu', cz_parse_position('https://www.google.com/maps/place/X/@31.62,-7.98,17z') === [31.62, -7.98]);
+t('lien Google Maps (!3d!4d) prioritaire', cz_parse_position('https://www.google.com/maps/place/X/@31.0,-7.0,17z/data=!3d31.6295!4d-7.9811') === [31.6295, -7.9811]);
+t('lien de partage (q=) lu', cz_parse_position('https://maps.google.com/?q=30.4105,-9.6020') === [30.4105, -9.602]);
+t('lien raccourci et texte refusés', cz_parse_position('https://maps.app.goo.gl/xyz') === null && cz_parse_position('Derb Zitoun') === null);
+t('itinéraires Google Maps et Waze', cz_liens_carte(31.6295, -7.9811)['waze'] === 'https://waze.com/ul?ll=31.6295,-7.9811&navigate=yes');
+db()->prepare("UPDATE c_logements SET livret_enc = ? WHERE id = ?")->execute([cz_enc(json_encode(['wifi_mdp' => 'mdp-secret', 'repere' => 'Porte verte'])), $lid]);
+t('livret chiffré en base', !str_contains((string)db()->query("SELECT livret_enc FROM c_logements WHERE id = $lid")->fetchColumn(), 'mdp-secret'));
+$lv = cz_livret(cz_logement($lid), false); t('livret sans codes : ni code ni Wi-Fi', !isset($lv['wifi_mdp']) && !isset($lv['code']) && $lv['repere'] === 'Porte verte');
+t('livret avec codes', cz_livret(cz_logement($lid), true)['wifi_mdp'] === 'mdp-secret');
+$rv = ['logement_id' => $lid, 'arrivee' => date('Y-m-d', strtotime('+10 days')), 'depart' => date('Y-m-d', strtotime('+12 days')), 'code_envoye_at' => null];
+t('voyageur : rien plus de 7 jours avant', cz_livret_voyageur($rv) === null);
+$rv['arrivee'] = date('Y-m-d'); t('voyageur : pas de code sans envoi du code', cz_livret_voyageur($rv)['codes'] === false);
+$rv['code_envoye_at'] = now(); t('voyageur : codes le jour d\'arrivée une fois le code envoyé', cz_livret_voyageur($rv)['codes'] === true);
+$rv['arrivee'] = date('Y-m-d', strtotime('-5 days')); $rv['depart'] = date('Y-m-d', strtotime('-1 day')); t('voyageur : plus rien après le départ', cz_livret_voyageur($rv) === null);
+
+echo "Avis, services, planning\n";
+db()->prepare("INSERT INTO c_reservations (logement_id, source, uid, arrivee, depart, nb_voyageurs, statut, lien_hash, lien_enc, arrivee_heure, created_at, updated_at) VALUES (?,'direct','', ?, ?, 2, 'confirmee', ?, '', '14:00', ?, ?)")
+  ->execute([$lid, date('Y-m-d'), date('Y-m-d', strtotime('+3 days')), cz_hash(cz_jeton()), now(), now()]); $ra = cz_reservation((int)db()->lastInsertId());
+t('avis d\'arrivée ouvert le jour même', cz_avis_ouverts($ra) === ['arrivee'], json_encode(cz_avis_ouverts($ra)));
+try { cz_avis_enregistrer($ra, 'sejour', ['logement' => 5], null); t('avis de séjour refusé pendant le séjour', false); } catch (RuntimeException $e) { t('avis de séjour refusé pendant le séjour', true); }
+try { cz_avis_enregistrer($ra, 'arrivee', [], null); t('note de propreté exigée', false); } catch (InvalidArgumentException $e) { t('note de propreté exigée', $e->getMessage() === 'champ:proprete'); }
+$inc0 = (int)db()->query("SELECT COUNT(*) FROM c_incidents")->fetchColumn();
+cz_avis_enregistrer($ra, 'arrivee', ['proprete' => 2, 'commentaire' => 'Poussière'], null);
+$av = db()->query("SELECT * FROM c_avis WHERE reservation_id = {$ra['id']}")->fetch();
+t('avis rattaché au dernier ménage', (int)$av['mission_id'] === $mid && (int)$av['proprete'] === 2);
+t('note basse : signalement ouvert', (int)db()->query("SELECT COUNT(*) FROM c_incidents")->fetchColumn() === $inc0 + 1);
+t('un seul avis d\'arrivée', cz_avis_ouverts($ra) === []);
+db()->prepare("INSERT INTO c_services (nom, prix, cout, delai_h, actif, ordre, created_at) VALUES ('Eau', 60, 25, 2, 1, 0, ?), ('Transfert', 450, 300, 48, 1, 1, ?)")->execute([now(), now()]); $s1 = (int)db()->lastInsertId();
+db()->prepare("INSERT INTO c_reservations (logement_id, source, uid, arrivee, depart, nb_voyageurs, statut, lien_hash, lien_enc, arrivee_heure, created_at, updated_at) VALUES (?,'direct','', ?, ?, 2, 'confirmee', ?, '', '16:00', ?, ?)")
+  ->execute([$lid, date('Y-m-d', strtotime('+1 day')), date('Y-m-d', strtotime('+4 days')), cz_hash(cz_jeton()), now(), now()]); $rb = cz_reservation((int)db()->lastInsertId());
+try { cz_commander($rb, [$s1 + 1 => 1]); t('délai de commande respecté', false); } catch (RuntimeException $e) { t('délai de commande respecté', str_contains($e->getMessage(), '48 h')); }
+$f = cz_commander($rb, [$s1 => 3]); t('commande enregistrée', $f === ['3 × Eau']);
+db()->exec("UPDATE c_services SET prix = 99 WHERE id = $s1");
+t('prix figé au moment de la commande', (float)db()->query("SELECT prix FROM c_commandes WHERE reservation_id = {$rb['id']}")->fetchColumn() === 60.0);
+t('préparation ajoutée à une mission', str_contains((string)db()->query("SELECT m.note FROM c_commandes c JOIN c_missions m ON m.id = c.mission_id WHERE c.reservation_id = {$rb['id']}")->fetchColumn(), '3 × Eau'));
+$mg = cz_marges(date('Y-m-d'), date('Y-m-d')); t('marge calculée', (float)$mg['ca'] === 180.0 && (float)$mg['marge'] === 105.0, json_encode($mg));
+db()->prepare("INSERT INTO c_missions (logement_id, type, date, heure, duree, statut, etat, created_at) VALUES (?, 'menage', ?, '13:00', 120, 'a_faire', '[]', ?)")->execute([$lid, date('Y-m-d'), now()]);
+$P = cz_planning(date('Y-m-d')); $tx = implode(' | ', array_column($P['conflits'], 'texte'));
+t('planning : arrivée du jour à son heure', in_array('14:00', array_column($P['arrivees'], 'heure'), true));
+t('planning : ménage qui finit après l\'arrivée signalé', str_contains($tx, 'après l\'arrivée prévue à 14:00'), $tx);
+t('planning : mission non attribuée signalée', str_contains($tx, 'non attribué'), $tx);
+
 echo "\n$ok réussis, $ko en échec\n"; exit($ko ? 1 : 0);
