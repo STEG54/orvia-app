@@ -25,7 +25,7 @@ $_SERVER = ['REQUEST_METHOD' => 'POST', 'HTTP_HOST' => $u['host'] . (isset($u['p
   'HTTPS' => ($u['scheme'] ?? 'https') === 'https' ? 'on' : '', 'REMOTE_ADDR' => '127.0.0.1'];
 $_POST = ['db_host' => $A['db']['host'] ?? 'localhost', 'db_name' => $A['db']['name'] ?? '', 'db_user' => $A['db']['user'] ?? '', 'db_pass' => $A['db']['pass'] ?? '',
   'ag_nom' => $A['agence']['nom'] ?? '', 'ag_court' => $A['agence']['court'] ?? '', 'ag_email' => $A['agence']['email'] ?? '', 'mail_from' => $A['agence']['mail_from'] ?? '',
-  'ag_couleur' => $A['agence']['couleur'] ?? '#6A4BFF', 'tz' => $A['agence']['tz'] ?? 'Europe/Paris', 'ag_matricule' => $A['agence']['matricule'] ?? 'AG',
+  'ag_couleur' => $A['agence']['couleur'] ?? '#43515C', 'tz' => $A['agence']['tz'] ?? 'Africa/Casablanca', 'ag_matricule' => $A['agence']['matricule'] ?? 'AG',
   'd1_nom' => $D[0]['nom'] ?? '', 'd1_email' => $D[0]['email'] ?? '', 'd2_nom' => $D[1]['nom'] ?? '', 'd2_email' => $D[1]['email'] ?? '', 'admin_pw' => $secours];
 chdir($dir); ob_start(); include "$dir/installation.php"; $html = ob_get_clean();
 if (empty($ok)) { fwrite(STDERR, 'Installation refusée : ' . ($err ?? trim(strip_tags($html))) . "\n"); exit(1); }

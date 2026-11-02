@@ -54,7 +54,11 @@ function czVJour(){
   const mis = J.missions.map(m => `<tr data-mis="${m.id}" style="cursor:pointer"><td>${m.date < auj ? `<span class="pill p-bad">En retard</span> ` : ""}${esc(m.heure || "")}</td><td>${esc(m.logement)}</td><td>${esc((CZ.ini.types || {})[m.type] || m.type)}</td><td>${esc(m.agent || "Non attribuée")}</td><td>${czSt(m.statut)}</td></tr>`).join("");
   const inc = J.incidents.map(i => `<li>${i.bloquant == 1 ? `<span class="pill p-bad">Bloquant</span> ` : ""}<b>${esc(i.logement)}</b> · ${esc(i.description)}</li>`).join("");
   const qs = (J.questions || []).map(q => `<li><b>${esc(q.logement)}</b> · ${esc(q.texte)} <button class="btn ghost" data-det="${q.reservation_id}">Répondre</button></li>`).join("");
-  return `${qs ? `<div class="card accent"><h2>Questions des voyageurs à traiter</h2><ul>${qs}</ul></div>` : ""}<div class="card"><h2>Arrivées</h2>${arr || `<div class="muted">Aucune arrivée aujourd'hui ni demain.</div>`}</div>
+  const D = J.demarrage, suiv = D ? D.etapes.find(e => !e.fait) : null;
+  const dem = D ? `<div class="card cz-dem"><div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap"><h2 style="margin:0">Bien démarrer avec Keylia</h2><span class="hint">${D.faits} sur ${D.total} étapes · <a href="#" id="demx">masquer</a></span></div>
+    <div class="cz-dem-p"><i style="width:${Math.round(100 * D.faits / D.total)}%"></i></div>
+    <ol class="cz-dem-l">${D.etapes.map(e => `<li class="${e.fait ? "ok" : e === suiv ? "now" : ""}"><span class="ic">${e.fait ? "✓" : ""}</span><div><b>${esc(e.titre)}</b>${e.fait ? "" : `<div class="hint">${esc(e.aide)}</div>`}</div>${e.fait ? "" : `<button class="${e === suiv ? "primary" : "btn ghost"}" data-dem="${e.onglet}">${e === suiv ? "Commencer" : "Ouvrir"}</button>`}</li>`).join("")}</ol></div>` : "";
+  return `${dem}${qs ? `<div class="card accent"><h2>Questions des voyageurs à traiter</h2><ul>${qs}</ul></div>` : ""}<div class="card"><h2>Arrivées</h2>${arr || `<div class="muted">Aucune arrivée aujourd'hui ni demain.</div>`}</div>
     <div class="card"><h2>Missions du jour</h2>${mis ? `<div class="scroll"><table class="tbl"><thead><tr><th>Heure</th><th>Logement</th><th>Type</th><th>Équipe</th><th>État</th></tr></thead><tbody>${mis}</tbody></table></div>` : `<div class="muted">Aucune mission aujourd'hui.</div>`}</div>
     <div class="card"><h2>Signalements ouverts</h2>${inc ? `<ul>${inc}</ul><button class="btn" data-gs="cz_incidents">Tous les signalements</button>` : `<div class="muted">Aucun signalement ouvert.</div>`}</div>`;
 }
@@ -63,6 +67,8 @@ function czBJour(){
   document.querySelectorAll("[data-code]").forEach(b => b.onclick = () => czCode(+b.dataset.code));
   document.querySelectorAll("[data-det]").forEach(b => b.onclick = () => czDetail(+b.dataset.det));
   document.querySelectorAll("[data-mis]").forEach(b => b.onclick = () => czMission(+b.dataset.mis));
+  document.querySelectorAll("[data-dem]").forEach(b => b.onclick = () => { const k = b.dataset.dem; if (k === "animatrices") return go(k); G.sub = k; G.ed = null; go("gestion"); });
+  if ($("#demx")) $("#demx").onclick = async e => { e.preventDefault(); try { await czapi("demarrage_masquer", {}); czRe(); } catch(x) { toast(x.message); } };
 }
 async function czCode(id, forcer){
   try { const r = await czapi("code_envoyer", {id, forcer: !!forcer});

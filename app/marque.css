@@ -112,3 +112,14 @@ button.primary:hover:not(:disabled){background:var(--vert-2)}
 .kt-cta{display:grid;gap:2px;width:calc(100% - 24px);margin:16px 12px 0;background:var(--vert);color:#fff;border:0;border-radius:14px;padding:15px;font:inherit;letter-spacing:0;cursor:pointer}
 .kt-cta span{font-size:17px;font-weight:600}.kt-cta small{font-size:12px;opacity:.75}
 .kt-pb{display:block;width:calc(100% - 24px);margin:10px 12px 0;color:#8E3B2F;border-color:#E2BDB5;border-radius:12px;background:#fff;letter-spacing:0}
+
+/* Démarrage guidé (tableau de bord d'une nouvelle conciergerie) */
+.cz-dem{border-top:3px solid var(--laiton);display:grid;gap:12px}
+.cz-dem-p{height:7px;background:#ECE8DF;border-radius:999px;overflow:hidden}.cz-dem-p i{display:block;height:100%;background:var(--ok);border-radius:999px}
+.cz-dem-l{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.cz-dem-l li{display:grid;grid-template-columns:28px 1fr auto;gap:12px;align-items:center;padding:10px 12px;border:1px solid var(--line);background:#fff}
+.cz-dem-l li.ok{background:transparent;border-color:transparent;color:var(--muted);padding-block:4px}
+.cz-dem-l li.now{border-color:var(--vert);box-shadow:inset 3px 0 0 var(--vert)}
+.cz-dem-l .ic{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;font-size:13px;font-weight:700;box-sizing:border-box;border:2.5px solid #D9B66F}
+.cz-dem-l li.ok .ic{background:var(--ok);border-color:var(--ok);color:#fff}
+.cz-dem a{color:var(--vert)}

@@ -613,3 +613,21 @@ function cz_rapport(string $from, string $to, string $par): array {
   $renta = ['logements_actifs' => $actifs, 'tarif' => $tarif, 'cout' => $cout, 'marge' => round((float)$total['marge_services'], 2), 'multiple' => $cout > 0 ? round($total['marge_services'] / $cout, 1) : null];
   return ['from' => $from, 'to' => $to, 'jours' => $jours, 'par' => $par, 'total' => $total, 'rentabilite' => $renta, 'lignes' => $lignes, 'services' => array_map(fn($s) => ['nom' => $s['nom'], 'quantite' => (int)$s['q'], 'ca' => round((float)$s['ca'], 2), 'marge' => round((float)$s['mg'], 2)], $st->fetchAll()), 'alertes' => $alertes];
 }
+
+/** Démarrage guidé d'une nouvelle conciergerie : les étapes qui rendent Keylia utile, cochées d'après les données réelles. Null une fois tout fait ou masqué. */
+function cz_demarrage(): ?array {
+  if (reglage('cz_demarrage_masque', '0') === '1') return null;
+  $n = fn(string $sql) => (int)db()->query($sql)->fetchColumn();
+  $E = [
+    ['logement', 'Ajouter votre premier logement', 'Nom, adresse et pièces à photographier à chaque ménage.', 'cz_logements', $n("SELECT COUNT(*) FROM c_logements") > 0],
+    ['calendrier', 'Relier son calendrier Airbnb ou Booking', 'Collez le lien iCal du logement : les réservations et les ménages arrivent tout seuls dans le planning.', 'cz_logements', $n("SELECT COUNT(*) FROM c_logements WHERE ical <> ''") > 0],
+    ['livret', 'Remplir le livret d\'arrivée', 'Position exacte, repère, photos du chemin, code de la boîte à clés et Wi-Fi.', 'cz_logements', $n("SELECT COUNT(*) FROM c_logements WHERE livret_enc IS NOT NULL AND livret_enc <> '' AND lat IS NOT NULL") > 0],
+    ['equipe', 'Inviter votre équipe terrain', 'Chaque intervenant reçoit ses missions sur son téléphone, en français ou en darija.', 'animatrices', $n("SELECT COUNT(*) FROM animatrices WHERE actif = 1") > 0],
+    ['proprietaire', 'Ajouter un propriétaire', 'Il suit ses séjours, ses ménages et valide les dépenses depuis son espace.', 'cz_proprietaires', $n("SELECT COUNT(*) FROM c_proprietaires") > 0],
+    ['services', 'Proposer des services aux voyageurs', 'Eau, petit-déjeuner, transfert : vous fixez vos prix, la marge est pour vous.', 'cz_services', $n("SELECT COUNT(*) FROM c_services WHERE actif = 1") > 0],
+    ['mission', 'Envoyer une première mission par WhatsApp', 'Depuis une mission, « Envoyer par WhatsApp » : l\'intervenant l\'ouvre sans compte et appuie sur « J\'arrive ».', 'cz_missions', $n("SELECT COUNT(*) FROM c_missions WHERE debut_at IS NOT NULL") > 0],
+  ];
+  $etapes = array_map(fn($e) => ['cle' => $e[0], 'titre' => $e[1], 'aide' => $e[2], 'onglet' => $e[3], 'fait' => $e[4]], $E);
+  $faits = count(array_filter($etapes, fn($e) => $e['fait']));
+  return $faits === count($etapes) ? null : ['etapes' => $etapes, 'faits' => $faits, 'total' => count($etapes)];
+}

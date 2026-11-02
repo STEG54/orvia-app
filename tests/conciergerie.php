@@ -22,6 +22,7 @@ echo "Démo et direction\n";
 http("demo.php?cle=" . rawurlencode($cle) . "&neuf=1"); $r = http('demo.php?prep=1'); t('agence fictive créée', ($r['json']['ok'] ?? false) === true);
 http('demo.php?role=direction'); $r = c('init'); t('écran conciergerie accessible', $r['code'] === 200 && isset($r['json']['logements']), $r['body']);
 $agents = $r['json']['agents'] ?? [];
+$r = c('aujourdhui'); t('démarrage guidé masqué dans la démo', $r['code'] === 200 && array_key_exists('demarrage', $r['json'] ?? []) && $r['json']['demarrage'] === null, substr($r['body'], -300));
 
 echo "Logement et propriétaire\n";
 $r = c('proprietaire_save', ['nom' => 'Mme Propriétaire Test', 'email' => 'proprio@test.invalid', 'plafond' => '500']); $pid = (int)($r['json']['id'] ?? 0); t('propriétaire créé', $pid > 0, $r['body']);

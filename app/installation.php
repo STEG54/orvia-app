@@ -3,7 +3,7 @@
 header('Cache-Control: no-store'); header('X-Frame-Options: DENY');
 $dir = __DIR__; $deja = is_file("$dir/config.php");
 $h = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
-$err = ''; $ok = false; $v = $_POST + ['db_host' => '', 'db_name' => '', 'db_user' => '', 'ag_nom' => '', 'ag_court' => '', 'ag_email' => '', 'ag_couleur' => '#6A4BFF', 'tz' => 'Europe/Paris', 'ag_matricule' => 'AG',
+$err = ''; $ok = false; $v = $_POST + ['db_host' => '', 'db_name' => '', 'db_user' => '', 'ag_nom' => '', 'ag_court' => '', 'ag_email' => '', 'ag_couleur' => '#43515C', 'tz' => 'Europe/Paris', 'ag_matricule' => 'AG',
   'd1_nom' => '', 'd1_email' => '', 'd2_nom' => '', 'd2_email' => '', 'mail_from' => ''];
 $TZ = ['Africa/Casablanca' => 'Maroc', 'Europe/Paris' => 'France métropolitaine', 'Europe/Brussels' => 'Belgique', 'Europe/Zurich' => 'Suisse', 'Europe/Luxembourg' => 'Luxembourg'];
 if (!$deja && $_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -14,7 +14,7 @@ if (!$deja && $_SERVER['REQUEST_METHOD'] === 'POST') {
     foreach (['ag_email', 'd1_email'] as $k) if (!filter_var($t($k), FILTER_VALIDATE_EMAIL)) throw new RuntimeException('Adresse e-mail invalide : ' . $t($k));
     if ($t('d2_email') !== '' && !filter_var($t('d2_email'), FILTER_VALIDATE_EMAIL)) throw new RuntimeException('Adresse e-mail invalide : ' . $t('d2_email'));
     $pw = (string)($_POST['admin_pw'] ?? ''); if (mb_strlen($pw) < 12) throw new RuntimeException('Mot de passe de secours : 12 caractères au moins.');
-    if (!preg_match('/^#[0-9a-fA-F]{6}$/', $t('ag_couleur'))) throw new RuntimeException('Couleur invalide (ex. #6A4BFF).');
+    if (!preg_match('/^#[0-9a-fA-F]{6}$/', $t('ag_couleur'))) throw new RuntimeException('Couleur invalide (ex. #43515C).');
     if (!isset($TZ[$t('tz')])) throw new RuntimeException('Fuseau horaire inconnu.');
     // Connexion et création des tables
     $pdo = new PDO('mysql:host=' . $t('db_host') . ';dbname=' . $t('db_name') . ';charset=utf8mb4', $t('db_user'), (string)($_POST['db_pass'] ?? ''), [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);

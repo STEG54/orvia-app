@@ -52,6 +52,6 @@ foreach ($st->fetchAll() as $r) {
   envoyer($r['email'], 'Votre espace Keylia est prêt',
     "Bonjour " . $r['nom'] . ",\n\nL'espace Keylia de " . $r['conciergerie'] . " est prêt :\n\nhttps://$dom/admin.php\n\n"
     . "Connectez-vous avec votre adresse e-mail et le mot de passe choisi à l'inscription. À la première connexion, Keylia vous demandera d'activer la double authentification : gardez votre téléphone à portée de main.\n\n"
-    . "Pour bien commencer : ajoutez votre premier logement avec son lien de calendrier Airbnb ou Booking, puis vos équipes.\n\nKeylia\nL'outil des professionnels de la conciergerie");
+    . "Pour bien commencer, la page « Aujourd'hui » vous guide en sept étapes : premier logement et son calendrier Airbnb ou Booking, livret d'arrivée, équipe, propriétaire, services aux voyageurs et première mission envoyée par WhatsApp.\n\nKeylia\nL'outil des professionnels de la conciergerie");
   echo date('c') . " PRÊT $slug\n";
 }

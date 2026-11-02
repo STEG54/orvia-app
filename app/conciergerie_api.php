@@ -68,7 +68,10 @@ try {
       $st->execute([$j, $j]);
       $inc = db()->query("SELECT i.id, i.description, i.bloquant, i.created_at, l.nom logement FROM c_incidents i JOIN c_logements l ON l.id = i.logement_id WHERE i.statut = 'ouvert' ORDER BY i.bloquant DESC, i.created_at DESC LIMIT 30")->fetchAll();
       $Q = db()->query("SELECT m.reservation_id, m.texte, m.created_at, l.nom logement FROM c_messages m JOIN c_reservations r ON r.id = m.reservation_id JOIN c_logements l ON l.id = r.logement_id WHERE m.a_traiter = 1 ORDER BY m.id DESC LIMIT 30")->fetchAll();
-      c_out(['arrivees' => $arr, 'missions' => $st->fetchAll(), 'incidents' => $inc, 'questions' => $Q]);
+      c_out(['arrivees' => $arr, 'missions' => $st->fetchAll(), 'incidents' => $inc, 'questions' => $Q, 'demarrage' => cz_demarrage()]);
+
+    case 'demarrage_masquer':
+      c_admin('tout'); reglage_set('cz_demarrage_masque', empty($in['afficher']) ? '1' : '0'); c_out(['ok' => true]);
 
     case 'logement_get':
       c_admin(); $l = cz_logement((int)($_GET['id'] ?? 0)) ?: c_fail('Logement introuvable.', 404);
