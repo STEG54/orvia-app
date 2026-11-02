@@ -29,7 +29,8 @@ chmod 0700 "$racine/tmp" "$racine/journaux"; chmod 0640 "$racine/www/config.php"
 chmod 2770 "$racine/www/uploads"; find "$racine/www/uploads" -type d -exec chmod g+s {} +   # nouveaux fichiers : groupe www-data (lecture des photos par Nginx)
 # 5. PHP-FPM et Nginx
 sed -e "s#__AGENCE__#$ag#g" -e "s#__RACINE__#$racine#g" "$ici/modeles/fpm-agence.conf" > "/etc/php/$phpv/fpm/pool.d/amaya-$ag.conf"
-tls=""; [ "$port" = "443" ] && tls="ssl_certificate /etc/letsencrypt/live/$dom/fullchain.pem; ssl_certificate_key /etc/letsencrypt/live/$dom/privkey.pem; add_header Strict-Transport-Security \"max-age=31536000\" always;"
+cert="${CERT_DOMAINE:-$dom}"   # certificat générique (*.keylia.ma) pour les espaces créés à l'inscription en ligne
+tls=""; [ "$port" = "443" ] && tls="ssl_certificate /etc/letsencrypt/live/$cert/fullchain.pem; ssl_certificate_key /etc/letsencrypt/live/$cert/privkey.pem; add_header Strict-Transport-Security \"max-age=31536000\" always;"
 ecoute="$port"; [ "$port" = "443" ] && ecoute="443 ssl"
 sed -e "s#__AGENCE__#$ag#g" -e "s#__RACINE__#$racine#g" -e "s#__DOMAINE__#$dom#g" -e "s#__PORT__#$ecoute#g" -e "s#__TLS__#$tls#g" "$ici/modeles/nginx-agence.conf" > "/etc/nginx/sites-available/amaya-$ag.conf"
 ln -sf "/etc/nginx/sites-available/amaya-$ag.conf" "/etc/nginx/sites-enabled/amaya-$ag.conf"

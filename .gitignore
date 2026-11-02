@@ -8,3 +8,4 @@ app/prive/*
 !app/prive/.htaccess
 *.zip
 .DS_Store
+inscription/config.php
