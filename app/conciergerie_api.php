@@ -58,6 +58,34 @@ try {
         'admins' => db()->query("SELECT id, nom FROM admins WHERE actif = 1 ORDER BY nom")->fetchAll(), 'statuts' => CZ_MISSION_STATUTS, 'titulaire' => est_titulaire(), 'gerer' => can('tout'),
         'reglages' => ['cz_conservation_jours' => cz_conservation_jours(), 'cz_copie_piece' => cz_copie_piece_demandee() ? '1' : '0', 'cz_code_auto' => reglage('cz_code_auto', '1'), 'cz_heure_menage' => reglage('cz_heure_menage', '11:00'), 'cz_ia' => reglage('cz_ia', '1'), 'ia_dispo' => defined('ORVIA_IA_CLE') && ORVIA_IA_CLE !== '']]);
 
+    case 'equipe':
+      // L'équipe terrain : fiche simple, activité des 30 derniers jours, propreté notée par les voyageurs, invitation par WhatsApp.
+      c_admin(); $j = date('Y-m-d'); $d30 = date('Y-m-d', strtotime('-30 days')); $d7 = date('Y-m-d', strtotime('+7 days'));
+      $L = db()->query("SELECT id, prenom, nom, telephone, email, zone ville, actif, statut, created_at FROM animatrices ORDER BY actif DESC, prenom, nom")->fetchAll();
+      $st = db()->prepare("SELECT animatrice_id a, SUM(statut = 'faite' AND date BETWEEN ? AND ?) faites, SUM(statut <> 'faite' AND date < ?) retards, SUM(statut <> 'faite' AND date BETWEEN ? AND ?) a_venir FROM c_missions WHERE animatrice_id IS NOT NULL GROUP BY animatrice_id");
+      $st->execute([$d30, $j, $j, $j, $d7]); $M = []; foreach ($st->fetchAll() as $r) $M[(int)$r['a']] = $r;
+      $st = db()->prepare("SELECT animatrice_id a, AVG(proprete) p, COUNT(proprete) n FROM c_avis WHERE proprete IS NOT NULL AND animatrice_id IS NOT NULL AND created_at >= ? GROUP BY animatrice_id"); $st->execute([date('Y-m-d', strtotime('-90 days'))]);
+      $A = []; foreach ($st->fetchAll() as $r) $A[(int)$r['a']] = $r;
+      $code = strtoupper(reglage('code_agence', 'AMAYA')); $url = cz_base_url() . '/';
+      c_out(['code' => $code, 'lien' => $url, 'equipe' => array_map(function ($a) use ($M, $A, $code, $url) { $i = (int)$a['id']; $m = $M[$i] ?? []; $v = $A[$i] ?? null;
+        return ['id' => $i, 'prenom' => $a['prenom'], 'nom' => $a['nom'], 'telephone' => $a['telephone'], 'email' => $a['email'], 'ville' => $a['ville'] === 'Maroc' ? '' : $a['ville'], 'actif' => (bool)$a['actif'],
+          'inscrit' => $a['created_at'] !== null, 'faites' => (int)($m['faites'] ?? 0), 'retards' => (int)($m['retards'] ?? 0), 'a_venir' => (int)($m['a_venir'] ?? 0),
+          'proprete' => $v ? round((float)$v['p'], 1) : null, 'avis' => $v ? (int)$v['n'] : 0,
+          'wa' => cz_wa_lien((string)$a['telephone'], "Bonjour " . $a['prenom'] . ",\nVoici l'appli de " . AG_NOM . " pour vos missions : $url\nCode : $code\nÀ la première connexion, indiquez votre prénom, votre nom, ce numéro et votre e-mail.")]; }, $L)]);
+
+    case 'equipe_save':
+      c_admin('tout'); $id = (int)($in['id'] ?? 0); // numéros enregistrés en chiffres, au format international
+      $prenom = clip($in['prenom'] ?? '', 80); $nom = clip($in['nom'] ?? '', 80); $tel = tel_norm((string)($in['telephone'] ?? '')); if (str_starts_with($tel, '0') && strlen($tel) === 10) $tel = '212' . substr($tel, 1);$email = mb_strtolower(trim((string)($in['email'] ?? ''))); $ville = clip($in['ville'] ?? '', 20);
+      if ($prenom === '' || $nom === '') c_fail('Indiquez le prénom et le nom.');
+      if (strlen($tel) < 9) c_fail('Indiquez le numéro de portable complet (WhatsApp).');
+      if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) c_fail('Adresse e-mail invalide.');
+      $st = db()->prepare("SELECT id FROM animatrices WHERE telephone <> '' AND RIGHT(telephone, 9) = RIGHT(?, 9) AND id <> ? LIMIT 1"); $st->execute([$tel, $id]);
+      if ($st->fetchColumn()) c_fail('Ce numéro est déjà celui d\'un membre de l\'équipe.');
+      $actif = !isset($in['actif']) || !empty($in['actif']);
+      if ($id) db()->prepare("UPDATE animatrices SET prenom = ?, nom = ?, telephone = ?, email = ?, zone = ?, actif = ? WHERE id = ?")->execute([$prenom, $nom, $tel, $email, $ville ?: array_key_first(ZONES), $actif ? 1 : 0, $id]);
+      else { db()->prepare("INSERT INTO animatrices (prenom, nom, telephone, email, zone, actif, statut) VALUES (?,?,?,?,?,1,'actif')")->execute([$prenom, $nom, $tel, $email, $ville ?: array_key_first(ZONES)]); $id = (int)db()->lastInsertId(); }
+      c_out(['ok' => true, 'id' => $id]);
+
     case 'aujourdhui':
       c_admin(); $j = date('Y-m-d'); $d = date('Y-m-d', strtotime('+1 day'));
       $st = db()->prepare("SELECT r.*, l.nom logement, l.ville FROM c_reservations r JOIN c_logements l ON l.id = r.logement_id WHERE r.statut = 'confirmee' AND r.arrivee BETWEEN ? AND ? ORDER BY r.arrivee, l.nom"); $st->execute([$j, $d]);

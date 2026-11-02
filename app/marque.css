@@ -123,3 +123,4 @@ button.primary:hover:not(:disabled){background:var(--vert-2)}
 .cz-dem-l .ic{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;font-size:13px;font-weight:700;box-sizing:border-box;border:2.5px solid #D9B66F}
 .cz-dem-l li.ok .ic{background:var(--ok);border-color:var(--ok);color:#fff}
 .cz-dem a{color:var(--vert)}
+body:has(.demo-ruban) #view{padding-bottom:96px}

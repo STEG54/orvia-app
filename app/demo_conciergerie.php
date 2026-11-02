@@ -25,10 +25,10 @@ function cz_demo_seed(): void {
   reglage_set('theme', 'orvia'); reglage_set('cz_pays', 'MA'); reglage_set('cz_demarrage_masque', '1'); reglage_set('cz_code_auto', '0');
   // Équipe terrain (fictive)
   $ia = $pdo->prepare("INSERT INTO animatrices (prenom, nom, telephone, email, zone, actif, statut, created_at, rgpd_info_at, rgpd_image_at) VALUES (?,?,?,?,'Marrakech',1,'actif',?,?,?)"); $E = [];
-  foreach ([['Fatima Zahra', 'Benali'], ['Youssef', 'Amrani'], ['Khadija', 'Ouazzani']] as $i => [$p, $n]) { $ia->execute([$p, $n, '06 00 00 1' . $i . ' 0' . $i, 'equipe' . $i . '@demo-orvia.invalid', $now, $now, $now]); $E[] = (int)$pdo->lastInsertId(); }
+  foreach ([['Fatima Zahra', 'Benali'], ['Youssef', 'Amrani'], ['Khadija', 'Ouazzani']] as $i => [$p, $n]) { $ia->execute([$p, $n, '06 00 00 1' . $i . ' 0' . $i, 'equipe' . $i . '@demo-keylia.invalid', $now, $now, $now]); $E[] = (int)$pdo->lastInsertId(); }
   // Propriétaires
   $ip = $pdo->prepare("INSERT INTO c_proprietaires (nom, email, telephone, plafond, created_at) VALUES (?,?,?,?,?)"); $P = [];
-  foreach ([['M. et Mme Lefèvre', 'lefevre@demo-orvia.invalid', 1500], ['Mme Nadia Berrada', 'berrada@demo-orvia.invalid', 2000], ['M. Karim Tazi', 'tazi@demo-orvia.invalid', 1000]] as [$n, $e, $pl]) { $ip->execute([$n, $e, '', $pl, $now]); $P[] = (int)$pdo->lastInsertId(); }
+  foreach ([['M. et Mme Lefèvre', 'lefevre@demo-keylia.invalid', 1500], ['Mme Nadia Berrada', 'berrada@demo-keylia.invalid', 2000], ['M. Karim Tazi', 'tazi@demo-keylia.invalid', 1000]] as [$n, $e, $pl]) { $ip->execute([$n, $e, '', $pl, $now]); $P[] = (int)$pdo->lastInsertId(); }
   // Logements
   $L = [
     ['Villa Palmeraie', 'Marrakech', 'Circuit de la Palmeraie', 0, 0, [['Chambre principale', 3], ['Chambre d\'amis', 2], ['Salle de bain', 2], ['Cuisine', 2], ['Salon', 2], ['Terrasse et piscine', 2]], '3 lits doubles, 8 serviettes, 6 draps de bain', 240, '7341'],

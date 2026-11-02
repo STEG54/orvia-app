@@ -1,6 +1,6 @@
 // ORVIA : administration de la conciergerie (Aujourd'hui, Logements, Réservations, Missions, Signalements, Propriétaires).
 const CZ = { ini:null, jour:null, logs:null, ed:null, res:null, resF:{ from:"", to:"", logement:"" }, det:null, mis:null, misF:{ from:"", to:"" }, mdet:null, inc:null, incS:"ouvert", prop:null, lien:null, decl:null, rap:null, rapF:null, plan:null, planD:"", avis:null, srv:null, srvEd:null };
-const CZ_SUBS = [["cz_jour","Aujourd'hui"],["cz_planning","Planning"],["cz_reservations","Réservations"],["cz_missions","Missions"],["cz_logements","Logements"],["cz_incidents","Signalements"],["cz_proprietaires","Propriétaires"],["cz_rapports","Rapports"],["cz_avis","Avis"],["cz_services","Services"]];
+const CZ_SUBS = [["cz_jour","Aujourd'hui"],["cz_planning","Planning"],["cz_reservations","Réservations"],["cz_missions","Missions"],["cz_logements","Logements"],["cz_incidents","Signalements"],["cz_proprietaires","Propriétaires"],["cz_rapports","Rapports"],["cz_avis","Avis"],["cz_services","Services"],["cz_equipe","Équipe"]];
 async function czapi(action, body, query){
   const url = "conciergerie_api.php?action=" + action + (query ? "&" + query : "");
   const r = await fetch(url, body ? {method:"POST", credentials:"same-origin", headers:{"Content-Type":"application/json","X-Requested-With":"amaya"}, body:JSON.stringify(body)} : {credentials:"same-origin"});
@@ -27,6 +27,7 @@ async function czLoad(){
   if (G.sub === "cz_rapports") { if (!CZ.rapF) { const p = czPeriode("30j"); CZ.rapF = {from:p[0], to:p[1], par:"logement", k:"30j"}; } CZ.rap = await czapi("rapport", null, `from=${CZ.rapF.from}&to=${CZ.rapF.to}&par=${CZ.rapF.par}`); }
   if (G.sub === "cz_avis") CZ.avis = await czapi("avis");
   if (G.sub === "cz_services") CZ.srv = await czapi("services");
+  if (G.sub === "cz_equipe") CZ.eq = await czapi("equipe");
   if (G.sub === "cz_jour") CZ.jour = await czapi("aujourdhui");
   if (G.sub === "cz_reservations") CZ.res = (await czapi("reservations", null, `from=${CZ.resF.from}&to=${CZ.resF.to}&logement=${CZ.resF.logement}`)).reservations;
   if (G.sub === "cz_missions") CZ.mis = (await czapi("missions", null, `from=${CZ.misF.from}&to=${CZ.misF.to}`)).missions;
@@ -34,11 +35,11 @@ async function czLoad(){
   if (G.sub === "cz_logements" || G.sub === "cz_proprietaires") CZ.ini = await czapi("init");
 }
 function czView(){
-  const v = {cz_jour:czVJour, cz_logements:czVLogements, cz_reservations:czVRes, cz_missions:czVMis, cz_incidents:czVInc, cz_proprietaires:czVProp, cz_planning:czVPlan, cz_rapports:czVRap, cz_avis:czVAvis, cz_services:czVSrv}[G.sub];
+  const v = {cz_jour:czVJour, cz_logements:czVLogements, cz_reservations:czVRes, cz_missions:czVMis, cz_incidents:czVInc, cz_proprietaires:czVProp, cz_planning:czVPlan, cz_rapports:czVRap, cz_avis:czVAvis, cz_services:czVSrv, cz_equipe:czVEq}[G.sub];
   return v ? v() : "";
 }
 function czBind(){
-  const b = {cz_jour:czBJour, cz_logements:czBLogements, cz_reservations:czBRes, cz_missions:czBMis, cz_incidents:czBInc, cz_proprietaires:czBProp, cz_planning:czBPlan, cz_rapports:czBRap, cz_avis:czBAvis, cz_services:czBSrv}[G.sub];
+  const b = {cz_jour:czBJour, cz_logements:czBLogements, cz_reservations:czBRes, cz_missions:czBMis, cz_incidents:czBInc, cz_proprietaires:czBProp, cz_planning:czBPlan, cz_rapports:czBRap, cz_avis:czBAvis, cz_services:czBSrv, cz_equipe:czBEq}[G.sub];
   if (b) b();
 }
 const czRe = () => go("gestion");
@@ -67,7 +68,7 @@ function czBJour(){
   document.querySelectorAll("[data-code]").forEach(b => b.onclick = () => czCode(+b.dataset.code));
   document.querySelectorAll("[data-det]").forEach(b => b.onclick = () => czDetail(+b.dataset.det));
   document.querySelectorAll("[data-mis]").forEach(b => b.onclick = () => czMission(+b.dataset.mis));
-  document.querySelectorAll("[data-dem]").forEach(b => b.onclick = () => { const k = b.dataset.dem; if (k === "animatrices") return go(k); G.sub = k; G.ed = null; go("gestion"); });
+  document.querySelectorAll("[data-dem]").forEach(b => b.onclick = () => { const k = b.dataset.dem; G.sub = k; G.ed = null; go("gestion"); });
   if ($("#demx")) $("#demx").onclick = async e => { e.preventDefault(); try { await czapi("demarrage_masquer", {}); czRe(); } catch(x) { toast(x.message); } };
 }
 async function czCode(id, forcer){
@@ -507,4 +508,40 @@ function czBRap(){
     const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob(["﻿" + rows.join("\r\n")], {type:"text/csv;charset=utf-8"}));
     a.download = `keylia-rapport-${CZ.rapF.par}-${CZ.rapF.from}-${CZ.rapF.to}.csv`; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
   };
+}
+
+/* ---------- Équipe terrain ---------- */
+const czTel = t => { const d = String(t || "").replace(/\D/g, ""); return /^212\d{9}$/.test(d) ? `+212 ${d[3]} ${d.slice(4, 6)} ${d.slice(6, 8)} ${d.slice(8, 10)} ${d.slice(10)}` : t; };
+function czVEq(){
+  const E = CZ.eq, ed = CZ.eqEd, g = CZ.ini.gerer;
+  const form = ed ? `<div class="card accent" style="display:grid;gap:10px"><h2 style="margin:0">${ed.id ? "Modifier " + esc(ed.prenom) : "Ajouter une personne"}</h2>
+      <div class="row3"><label>Prénom<input id="qp" value="${esc(ed.prenom || "")}"></label><label>Nom<input id="qn" value="${esc(ed.nom || "")}"></label><label>Ville<input id="qv" value="${esc(ed.ville || "")}" placeholder="Marrakech"></label></div>
+      <div class="row3"><label>Portable WhatsApp<input id="qt" type="tel" value="${esc(czTel(ed.telephone || ""))}" placeholder="+212 6 …"></label><label>E-mail <span class="hint">pour le code de connexion</span><input id="qe" type="email" value="${esc(ed.email || "")}"></label>
+      ${ed.id ? `<label class="chk" style="align-self:end"><input type="checkbox" id="qa" ${ed.actif ? "checked" : ""}> Active dans l'équipe</label>` : "<span></span>"}</div>
+      <div style="display:flex;gap:8px"><button class="primary" id="qs">Enregistrer</button><button class="btn ghost" id="qx">Annuler</button></div></div>` : "";
+  const st = a => !a.actif ? `<span class="pill">Désactivée</span>` : a.inscrit ? `<span class="pill p-ok">Appli installée</span>` : `<span class="pill p-todo">Pas encore connectée</span>`;
+  return `<div class="card"><div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center"><h2 style="margin:0">Équipe terrain</h2>${g ? `<button class="primary" id="qnew">Ajouter une personne</button>` : ""}</div>
+      <div class="muted" style="margin-top:6px">Femmes de ménage, gouvernantes, techniciens : chacun reçoit ses missions sur son téléphone, en français ou en darija. Pour une intervention ponctuelle, envoyez simplement la mission par WhatsApp depuis l'onglet Missions : pas besoin de compte.</div></div>
+    ${form}
+    <div class="card"><div class="scroll"><table class="tbl"><thead><tr><th>Personne</th><th>Contact</th><th>30 derniers jours</th><th>7 prochains jours</th><th>Propreté notée</th><th>Appli</th><th></th></tr></thead><tbody>
+    ${E.equipe.map(a => `<tr${a.actif ? "" : ` style="opacity:.55"`}><td><b>${esc(a.prenom)} ${esc(a.nom)}</b>${a.ville ? `<div class="hint">${esc(a.ville)}</div>` : ""}</td>
+      <td>${esc(czTel(a.telephone))}${a.email ? `<div class="hint">${esc(a.email)}</div>` : ""}</td>
+      <td>${a.faites} mission${a.faites > 1 ? "s" : ""}${a.retards ? `<div><span class="pill p-bad">${a.retards} en retard</span></div>` : ""}</td><td>${a.a_venir || "–"}</td>
+      <td>${a.proprete != null ? czN(a.proprete) + "/5" + `<div class="hint">${a.avis} avis</div>` : "–"}</td><td>${st(a)}</td>
+      <td style="white-space:nowrap">${g ? `<button class="btn" data-qed="${a.id}">Modifier</button> ` : ""}${a.wa && a.actif ? `<a class="btn ghost" href="${esc(a.wa)}" target="_blank" rel="noopener">Inviter par WhatsApp</a>` : ""}</td></tr>`).join("") || `<tr><td colspan="7" class="muted">Personne pour l'instant. Ajoutez votre première intervenante.</td></tr>`}</tbody></table></div></div>
+    <div class="card" style="display:grid;gap:8px"><h3 style="margin:0">Connexion à l'appli</h3>
+      <div class="muted">Chaque personne ouvre ce lien sur son téléphone et saisit le code de la conciergerie avec son prénom, son nom et son numéro. Un code de confirmation lui est envoyé par e-mail à la première connexion.</div>
+      <div><b>Lien :</b> ${esc(E.lien)} <button class="btn ghost" id="qcl">Copier</button></div>
+      ${g ? `<div class="row3"><label>Code de la conciergerie<input id="qc" value="${esc(E.code)}" style="font-weight:600;letter-spacing:.08em;text-transform:uppercase"></label><div style="align-self:end"><button class="btn" id="qcs">Changer le code</button></div>
+        <div class="hint" style="align-self:end">Changer le code ne déconnecte personne : il bloque seulement les nouvelles connexions avec l'ancien.</div></div>` : `<div><b>Code :</b> ${esc(E.code)}</div>`}</div>`;
+}
+function czBEq(){
+  const E = CZ.eq;
+  if ($("#qnew")) $("#qnew").onclick = () => { CZ.eqEd = {id:0}; czRe(); };
+  document.querySelectorAll("[data-qed]").forEach(b => b.onclick = () => { CZ.eqEd = Object.assign({}, E.equipe.find(a => a.id === +b.dataset.qed)); czRe(); });
+  if ($("#qx")) $("#qx").onclick = () => { CZ.eqEd = null; czRe(); };
+  if ($("#qs")) $("#qs").onclick = async () => { try { await czapi("equipe_save", {id:CZ.eqEd.id, prenom:$("#qp").value, nom:$("#qn").value, ville:$("#qv").value, telephone:$("#qt").value, email:$("#qe").value, actif:$("#qa") ? $("#qa").checked : true});
+    CZ.eqEd = null; CZ.ini = null; toast("Équipe mise à jour."); czRe(); } catch(e) { toast(e.message); } };
+  $("#qcl").onclick = () => czCopier(E.lien, "Lien copié.");
+  if ($("#qcs")) $("#qcs").onclick = async () => { try { await api("save_code", {code:$("#qc").value}); toast("Code changé."); czRe(); } catch(e) { toast(e.message); } };
 }

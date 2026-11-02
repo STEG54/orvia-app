@@ -40,7 +40,7 @@ if (PHP_SAPI !== 'cli') {
 // Nom du produit, affiché partout (logos : assets/logo-produit*.png, styles : marque.css). Un seul endroit à changer en cas de nouvelle marque.
 defined('PRODUIT_NOM') || define('PRODUIT_NOM', 'Keylia');
 defined('AG_NOM') || define('AG_NOM', 'Agence'); defined('AG_COURT') || define('AG_COURT', AG_NOM); defined('AG_EMAIL') || define('AG_EMAIL', MAIL_TO_DEFAULT);
-defined('AG_COULEUR') || define('AG_COULEUR', '#6A4BFF'); defined('AG_MATRICULE') || define('AG_MATRICULE', 'AG'); defined('AG_TESTEURS') || define('AG_TESTEURS', []);
+defined('AG_COULEUR') || define('AG_COULEUR', '#43515C'); defined('AG_MATRICULE') || define('AG_MATRICULE', 'AG'); defined('AG_TESTEURS') || define('AG_TESTEURS', []);
 defined('ADMINS_PRINCIPAUX') || define('ADMINS_PRINCIPAUX', []);
 /** Logo de l'agence (déposé dans Réglages), sinon celui d'Amaya. $blanc : version claire pour les bandeaux foncés. */
 /** Démo publique (config.php : define('AMAYA_DEMO', true)) : données fictives, e-mails coupés, réglages sensibles bloqués. */
@@ -86,8 +86,8 @@ function ag_logo(bool $blanc = false): string { foreach ($blanc ? ['logo-agence-
 /** Logo pour l'en-tête des pages, avec la date du fichier : le navigateur recharge un logo modifié. */
 function ag_logo_url(bool $blanc = false): string { $f = ag_logo($blanc); return $f . '?v=' . @filemtime(__DIR__ . '/' . $f); }
 
-const ZONES = ['France' => 'EUR']; // Amaya : France métropolitaine ; le découpage se fait par département et par secteur (groupes de départements)
-const DEVISE_SYMBOLE = ['EUR' => '€'];
+const ZONES = ['Maroc' => 'MAD']; // Keylia : une seule zone, le Maroc (les villes se gèrent logement par logement)
+const DEVISE_SYMBOLE = ['MAD' => 'DH', 'EUR' => '€'];
 const MAX_PHOTOS = 5;
 // Clients proposés aux intervenants : nom, marques (affichées entre parenthèses), marques dont le CA est saisi séparément.
 const CLIENTS = []; // clients (marques) de l'agence : créés dans l'onglet Marques
@@ -625,7 +625,7 @@ function secteur_label(string $z): string {
   if (str_starts_with($z, 's:')) return 'Secteur ' . substr($z, 2);
   return 'Toute la France';
 }
-function zone_cp(string $cp): ?string { $cp = preg_replace('/\D/', '', $cp); return strlen($cp) === 5 ? 'France' : null; }
+function zone_cp(string $cp): ?string { $cp = preg_replace('/\D/', '', $cp); return strlen($cp) === 5 ? array_key_first(ZONES) : null; }
 /** Doublons possibles : même nom et prénom (accents et casse ignorés), même e-mail ou même portable. */
 function doublons(): array {
   $L = db()->query("SELECT a.id, a.matricule, a.prenom, a.nom, a.zone, a.telephone, a.email, a.created_at, a.actif,

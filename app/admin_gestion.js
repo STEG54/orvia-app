@@ -547,52 +547,17 @@ function cardRegles(r){
 }
 function vReglages(){
   const r = G.ini.reglages, f = (k, l, rows) => rows ? `<label>${l}<textarea data-r="${k}" rows="${rows}">${esc(r[k])}</textarea></label>` : `<label>${l}<input data-r="${k}" value="${esc(r[k])}"></label>`;
-  const im = G.ini.images || {}, imgs = [["logo","Logo (fond clair : devis, factures, contrats)"],["logo_blanc","Logo version claire (bandeau foncé de l'appli)"],["signature","Signature du gérant (contrats)"]];
+  const im = G.ini.images || {}, imgs = [["logo","Logo (fond clair : documents imprimés, e-mails)"],["logo_blanc","Logo version claire (bandeau de l'appli)"]];
   const ap = G.ini.apparence || {themes:{}}, th = ap.themes;
-  return `<div class="card"><h2>Apparence</h2><div class="muted">Thème de l'appli et couleur principale de votre agence (appli, administration, espace marques et documents PDF).</div>
+  return `<div class="card"><h2>Apparence</h2><div class="muted">Thème et couleur principale de votre conciergerie : appli de l'équipe, administration, pages des voyageurs et des propriétaires.</div>
     <div class="ap-themes">${Object.entries(th).map(([k, t]) => `<label class="ap-t${ap.theme === k ? " on" : ""}"><input type="radio" name="ap-theme" value="${k}" ${ap.theme === k ? "checked" : ""}>
       <span class="ap-sw" style="background:linear-gradient(in oklch 120deg,${t.defaut},${t.pop})"></span><span class="ap-bg" style="background:${t.bg};border-color:${t.line}"><i style="background:${t.ink}"></i><i style="background:${t.defaut}"></i><i style="background:${t.pop}"></i></span><b>${esc(t.nom)}</b></label>`).join("")}</div>
-    <div class="row3"><label>Couleur principale<input type="color" id="ap-c" value="${esc(ap.couleur || "#6A4BFF")}" style="height:46px;padding:4px"></label>
+    <div class="row3"><label>Couleur principale<input type="color" id="ap-c" value="${esc(ap.couleur || "#43515C")}" style="height:46px;padding:4px"></label>
       <div class="hint" style="align-self:end">Conseil : gardez la couleur proposée par le thème, ou celle de votre logo.</div><div style="align-self:end"><button class="primary" id="ap-save">Appliquer</button></div></div></div>
-    <div class="card"><h2>Logo et signature</h2><div class="muted">PNG de préférence, fond transparent. Sans logo, celui de ${esc(PRODUIT)} s'affiche.</div><div class="row3">
+    <div class="card"><h2>Logo</h2><div class="muted">PNG de préférence, fond transparent. Sans logo, celui de ${esc(PRODUIT)} s'affiche.</div><div class="row3">
     ${imgs.map(([k, l]) => `<label>${l}<span class="hint">${im[k] ? "✓ en place" : "aucun"}</span><input type="file" accept="image/png,image/jpeg,image/webp" data-img="${k}">${im[k] ? `<button type="button" class="ghost" data-imgdel="${k}">Retirer</button>` : ""}</label>`).join("")}</div></div>
-    <div class="card"><h2>Société</h2><div class="row3">${f("societe", "Raison sociale")}${f("contact", "Votre contact (sur les devis)")}${f("signataire", "Signataire des CGV")}</div>
-    <div class="row3">${f("adresse", "Adresse", 2)}${f("telephone", "Téléphone")}${f("email", "E-mail")}</div><div class="row3">${f("site", "Site")}${f("siret", "SIRET (pied des contrats)")}<span></span></div>${f("legal", "Mentions légales (pied de page)", 2)}</div>
-    <div class="card"><h2>Banque et règlement</h2><div class="muted">Compte principal, imprimé sur les devis et factures. Le second compte sert aux clients qui le demandent (choix dans la fiche du client).</div><div class="row3">${f("banque", "Banque (compte principal)")}${f("iban", "IBAN")}${f("bic", "BIC")}</div>
-      <div class="row3">${f("banque2", "Banque (second compte)")}${f("iban2", "IBAN")}${f("bic2", "BIC")}</div>${f("penalites", "Pénalités de retard (mention obligatoire)", 4)}</div>
-    <div class="card"><h2>Tarifs</h2><div class="muted">Proposés dans chaque prestation d'un devis (et par défaut pour un client) : prix d'une journée HT, horaires, intitulé. « Fériés payés » : les jours fériés de la période sont comptés non travaillés mais payés. Lignes à ajouter : une par ligne, « libellé ; prix ».</div>
-      <div class="tablewrap"><table class="gtar"><tr><th>Nom</th><th>Prix jour HT</th><th>Début</th><th>Fin</th><th>Pause (min)</th><th>Intitulé du poste</th><th>Fériés payés</th><th>Lignes à ajouter (prime, reporting)</th><th></th></tr>
-      ${(r.tarifs || []).map((t, k) => `<tr data-tk="${k}"><td><input data-t="nom" value="${esc(t.nom)}"></td><td><input data-t="prix" inputmode="decimal" value="${String(t.prix).replace(".", ",")}" style="width:80px"></td><td><input type="time" data-t="debut" value="${t.debut}"></td><td><input type="time" data-t="fin" value="${t.fin}"></td>
-        <td><input data-t="pause" inputmode="numeric" value="${t.pause}" style="width:60px"></td><td><input data-t="poste" value="${esc(t.poste)}"></td><td style="text-align:center"><input type="checkbox" data-t="feries_payes" ${t.feries_payes ? "checked" : ""} style="width:auto"></td>
-        <td><textarea data-t="extras" rows="2">${esc(t.extras.map(x => x.designation + " ; " + String(x.pu).replace(".", ",")).join("\n"))}</textarea></td><td><input type="hidden" data-t="id" value="${esc(t.id)}"><button type="button" class="ghost" data-tdel="${k}">✕</button></td></tr>`).join("")}</table></div>
-      <div class="btns"><button type="button" class="ghost" id="g-tadd">+ Ajouter un tarif</button></div></div>
-    <div class="card"><h2>Frais des intervenants</h2><div class="muted">Repris dans les contrats (estimation des frais), la préparation de paie et les marges. Les montants de l'accueil laissés vides reprennent ceux de l'animation.</div>
-      <div class="muted" style="margin:10px 0 4px"><b>Animation commerciale et merchandising</b></div>
-      <div class="row3">${f("repas", "Indemnité repas (€)")}${f("repas_seuil", "Repas dû au-delà de (heures de travail)")}${f("km", "Indemnité kilométrique (€/km)")}</div>
-      <div class="muted" style="margin:10px 0 4px"><b>Accueil, hôtessariat et événementiel</b></div>
-      <div class="row3">${f("repas_hot", "Indemnité repas (€)")}${f("repas_seuil_hot", "Repas dû au-delà de (heures)")}${f("km_hot", "Indemnité kilométrique (€/km)")}</div>
-      <div class="row3">${f("panier_hot", "Panier de nuit (€ par service tardif)")}${f("panier_apres_hot", "Service tardif : fin après (hh:mm)")}${f("tenue_hot", "Entretien de la tenue (€ par journée)")}</div>
-      <div class="hint">Montants à reprendre de votre convention collective ou de vos usages. Le retour à domicile en taxi après une soirée en zone touristique internationale reste à rembourser sur note de frais.</div></div>
-    <div class="card"><h2>Prestations</h2><div class="row3">${f("validite_jours", "Validité d'un devis (jours)")}${f("smic_horaire", "SMIC horaire brut en vigueur (€)")}<div class="hint" style="align-self:end">Aucun taux horaire de contrat ni de proposition de CDII ne peut être inférieur au SMIC. À mettre à jour à chaque revalorisation.</div></div>${f("mention_presta", "Mention sous les lignes (par défaut)", 3)}</div>
-    <div class="card"><h2>Pôles et postes</h2><div class="muted">Pôles proposés à la création d'un devis. Les postes s'affichent dans chaque prestation (un par ligne).</div>
-      <input type="hidden" data-r="poles" id="g-poles" value="${esc(r.poles)}">
-      <div class="gpole">${Object.entries(G.ini.poles || {}).map(([k, l]) => `<label class="ck"><input type="checkbox" data-pole="${k}" ${POLES_ACTIFS().includes(k) ? "checked" : ""}><span>${esc(l)}</span></label>`).join("")}</div>
-      <div class="row3">${f("postes_anim", "Postes · Animation commerciale", 7)}${f("postes_hot", "Postes · Accueil & Hôtessariat", 7)}<div>${f("charges_pat", "Charges patronales nettes, animation (% du brut)")}${f("charges_pat_hot", "Charges patronales nettes, accueil (% du brut)")}</div></div></div>
-    ${cardRegles(r)}
-    ${POLES_ACTIFS().includes("anim") ? cardModele(r, "ct") : ""}${POLES_ACTIFS().includes("hot") ? cardModele(r, "hot") : ""}
-    ${POLES_ACTIFS().includes("anim") ? `<div class="card"><h2>Proposition de CDI intermittent (règle des 500 heures)</h2>
-      <div class="muted">Lettre remise à une personne en CIDD qui a travaillé 500 heures sur 12 mois (Contrats › Règle des 500 heures). Le texte ci-dessous est un <b>point de départ</b> : relisez-le, adaptez-le à votre convention et à vos accords, et faites-le valider. Amaya ajoute l'en-tête, la signature, le coupon-réponse et la décharge de remise en main propre.</div>
-      ${f("cdii_modele", "Texte de la lettre", 16)}
-      <details><summary>Champs remplis automatiquement</summary><div class="hint" style="line-height:1.7">{Civilite} : Madame ou Monsieur · {prenom} · {nom} · {societe} · {convention} · {debut_ref} et {fin_ref} : période de référence · {heures} : heures travaillées · {emploi} · {volume} : durée annuelle minimale proposée · {taux} · {remuneration} · {periodes} · {prise_effet} · {date} · {lieu} · {signataire} · {qualite}. Une ligne commençant par « - » fait une puce.</div></details>
-      <div class="row3">${f("cdii_alerte", "Alerte à partir de (heures sur 12 mois)")}<span></span><span></span></div>
-      <label class="ck"><input type="checkbox" data-r="cdii_valide" value="1" ${r.cdii_valide ? "checked" : ""}><span>Ce texte est celui de notre agence, relu et validé : la préparation des lettres est autorisée</span></label></div>` : ""}
-    <div class="card"><h2>Contrats de travail</h2><div class="row3">${f("ct_coef", "Coefficient")}${f("ct_poste", "Rôle (tableau des horaires)")}</div>
-      <div class="row3">${f("ct_representant", "Représentant de l'employeur")}${f("ct_qualite", "Qualité")}${f("ct_lieu", "Fait à")}</div>
-      <div class="row3">${f("ct_retraite", "Caisse de retraite complémentaire (nom et adresse)")}${f("ct_caisse", "Mutuelle et prévoyance (nom et adresse)")}${f("ct_urssaf", "URSSAF de")}</div>
-      <div class="row3">${f("ct_dernier", "Dernier n° de contrat utilisé")}${f("ct_forme", "Forme, capital, code APE (ex. SARL au capital de 5 000 € · APE 7311Z)")}<span></span></div></div>
-    <div class="card"><h2>E-mails aux clients</h2><div class="muted">Repères remplacés à l'envoi : {prenom}, {numero}, {objet}, {montant_ht}, {montant_ttc}, {paiement}, {echeance}, {lien} (espace marques), {signature}. Numérotation automatique : date du jour et rang (20261009/01) ; la facture reprend le numéro de son devis.</div>
-      ${f("mail_devis", "E-mail d'envoi d'un devis", 9)}${f("mail_facture", "E-mail d'envoi d'une facture", 7)}<div class="row3">${f("signature", "Signature", 4)}${f("notif_emails", "Prévenir ces adresses quand une marque répond à un devis", 2)}<span></span></div></div>
-    <div class="card"><h2>Conditions générales de vente</h2><div class="muted">Imprimées au verso de chaque devis. Un paragraphe par bloc, séparés par une ligne vide.</div>${f("cgv", "", 18)}</div>
+    <div class="card"><h2>Société</h2><div class="row3">${f("societe", "Raison sociale")}${f("contact", "Responsable")}<span></span></div>
+    <div class="row3">${f("adresse", "Adresse", 2)}${f("telephone", "Téléphone")}${f("email", "E-mail")}</div><div class="row3">${f("site", "Site")}${f("siret", "ICE")}<span></span></div>${f("legal", "Mentions légales (pied de page)", 2)}</div>
     <div class="btns"><button class="primary" id="g-rsave">Enregistrer les réglages</button></div>`;
 }
 function bReglages(){
@@ -601,14 +566,14 @@ function bReglages(){
   const rv = i => i.type === "checkbox" ? (i.checked ? "1" : "") : i.value;
   const keep = () => document.querySelectorAll("[data-r]").forEach(i => G.ini.reglages[i.dataset.r] = rv(i));
   document.querySelectorAll("[data-pole]").forEach(c => c.onchange = () => { const a = [...document.querySelectorAll("[data-pole]:checked")].map(x => x.dataset.pole); if (!a.length) { c.checked = true; return toast("Gardez au moins un pôle."); } $("#g-poles").value = a.join(","); });
-  $("#g-tadd").onclick = () => { keep(); G.ini.reglages.tarifs = readT().concat([{id:"", nom:"Nouveau tarif", prix:185, debut:"10:00", fin:"18:00", pause:60, poste:"Animation", feries_payes:false, extras:[]}]); go("gestion"); };
+  if ($("#g-tadd")) $("#g-tadd").onclick = () => { keep(); G.ini.reglages.tarifs = readT().concat([{id:"", nom:"Nouveau tarif", prix:185, debut:"10:00", fin:"18:00", pause:60, poste:"Animation", feries_payes:false, extras:[]}]); go("gestion"); };
   document.querySelectorAll("[data-tdel]").forEach(b => b.onclick = () => { keep(); const L = readT(); L.splice(+b.dataset.tdel, 1); G.ini.reglages.tarifs = L; go("gestion"); });
   document.querySelectorAll("[name=ap-theme]").forEach(r => r.onchange = () => { const t = (G.ini.apparence.themes || {})[r.value]; if (t) $("#ap-c").value = t.defaut; document.querySelectorAll(".ap-t").forEach(x => x.classList.toggle("on", x.contains(r))); });
-  $("#ap-save").onclick = async () => { const th = (document.querySelector("[name=ap-theme]:checked") || {}).value || "aurore";
+  $("#ap-save").onclick = async () => { const th = (document.querySelector("[name=ap-theme]:checked") || {}).value || "orvia";
     try { await gapi("apparence", {theme:th, couleur:$("#ap-c").value}); toast("Apparence appliquée"); setTimeout(() => location.reload(), 400); } catch(e) { toast(e.message); } };
   const imgEnv = async (type, data) => { try { await gapi("identite_image", {type, data}); G.ini.images = Object.assign(G.ini.images || {}, {[type]: !!data}); toast(data ? "Image enregistrée" : "Image retirée"); keep(); go("gestion"); } catch(e) { toast(e.message); } };
   document.querySelectorAll("[data-img]").forEach(i => i.onchange = () => { const f = i.files[0]; if (!f) return; const rd = new FileReader(); rd.onload = () => imgEnv(i.dataset.img, rd.result); rd.readAsDataURL(f); });
   document.querySelectorAll("[data-imgdel]").forEach(b => b.onclick = () => imgEnv(b.dataset.imgdel, ""));
-  $("#g-rsave").onclick = async () => { const body = {tarifs:readT()}; document.querySelectorAll("[data-r]").forEach(i => body[i.dataset.r] = rv(i));
+  $("#g-rsave").onclick = async () => { const body = document.querySelector("[data-tk]") ? {tarifs:readT()} : {}; document.querySelectorAll("[data-r]").forEach(i => body[i.dataset.r] = rv(i));
     try { const r = await gapi("reglages_save", body); G.ini.reglages = r.reglages; toast("Réglages enregistrés"); } catch(e) { toast(e.message); } };
 }

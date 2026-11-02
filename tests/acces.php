@@ -148,7 +148,7 @@ $log = (string)@file_get_contents(sys_get_temp_dir() . '/geoapify-simule.log');
 t('seules des coordonnées partent chez le fournisseur', str_contains($log, '/v1/routing?waypoints=') && !preg_match('/[A-Za-z]{4,}%20|@/', explode('apiKey', $log)[0]), $log);
 $n1 = substr_count((string)@file_get_contents(sys_get_temp_dir() . '/geoapify-simule.log'), '/v1/routing'); $r2 = geo_route($A, $Bp);
 $n2 = substr_count((string)@file_get_contents(sys_get_temp_dir() . '/geoapify-simule.log'), '/v1/routing'); t('résultat gardé en mémoire (pas de 2e appel)', $r2['km'] == 12.3 && $n2 === $n1, "$n1 → $n2");
-$S = req($jd, 'api.php?action=magasin_suggest', ['nom' => 'Parfumerie Test', 'ville' => 'Paris', 'adresse' => '', 'zone' => 'France']);
+$S = req($jd, 'api.php?action=magasin_suggest', ['nom' => 'Parfumerie Test', 'ville' => 'Paris', 'adresse' => '', 'zone' => 'Maroc']);
 t('recherche d\'un magasin par son nom (Geoapify, mention affichée)', ($S['json']['geoapify'] ?? false) && (bool)array_filter($S['json']['suggestions'] ?? [], fn($x) => $x['source'] === 'Geoapify' && $x['adresse'] === '12 Rue de la Paix'), $S['body']);
 proc_terminate($gsrv);
 

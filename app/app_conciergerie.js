@@ -62,12 +62,9 @@ async function czHome(){
       <span class="mp">${esc(czt(next.statut))}</span></button>` : `<div class="kt-next vide"><span class="nm">${czt("tout")}</span><small>${czt("aucune")}</small></div>`}
     ${att ? `<div class="kt-att">${att} ${czt("attente")}</div>` : ""}
     ${Object.keys(jours).sort().map(d => `<div class="kt-jour">${d === auj ? czt("auj") : esc(czaD(d))}</div><div class="kt-list">${jours[d].map(carte).join("")}</div>`).join("")}
-    <div class="kt-list" style="margin-top:20px"><button class="kt-row" id="t-docs"><span class="kt-ic doc">▤</span><span class="tx"><b>${czt("docs")}</b></span><span class="go">›</span></button>
-      <button class="kt-row" id="t-fiche"><span class="kt-ic doc">☺</span><span class="tx"><b>${czt("fiche")}</b></span><span class="go">›</span></button></div>`;
+`;
   $("#czl").onclick = () => { CZL = CZL === "ar" ? "fr" : "ar"; try { localStorage.setItem("orvia-agent-l", CZL); } catch(e) {} czHome(); };
   document.querySelectorAll("[data-m]").forEach(b => b.onclick = () => czOuvrir(+b.dataset.m));
-  $("#t-docs").onclick = () => { S.view = "docs"; document.documentElement.dir = "ltr"; render(); };
-  $("#t-fiche").onclick = () => { S.view = "fiche"; document.documentElement.dir = "ltr"; render(); };
   czQ.vider();
 }
 

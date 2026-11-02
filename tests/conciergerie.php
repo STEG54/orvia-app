@@ -24,6 +24,13 @@ http('demo.php?role=direction'); $r = c('init'); t('écran conciergerie accessib
 $agents = $r['json']['agents'] ?? [];
 $r = c('aujourdhui'); t('démarrage guidé masqué dans la démo', $r['code'] === 200 && array_key_exists('demarrage', $r['json'] ?? []) && $r['json']['demarrage'] === null, substr($r['body'], -300));
 
+echo "Équipe terrain\n";
+$r = c('equipe'); t('liste de l\'équipe avec activité et invitation WhatsApp', $r['code'] === 200 && count($r['json']['equipe'] ?? []) >= 3 && str_starts_with($r['json']['equipe'][0]['wa'] ?? '', 'https://wa.me/'), substr($r['body'], 0, 300));
+$r = c('equipe_save', ['prenom' => 'Salma', 'nom' => 'Idrissi', 'telephone' => '+212 6 61 22 33 44', 'ville' => 'Marrakech']); $qid = (int)($r['json']['id'] ?? 0); t('personne ajoutée à l\'équipe', $qid > 0, $r['body']);
+$r = c('equipe_save', ['prenom' => 'Autre', 'nom' => 'Doublon', 'telephone' => '0661223344']); t('numéro déjà pris refusé', $r['code'] === 400, $r['body']);
+$r = c('equipe_save', ['id' => $qid, 'prenom' => 'Salma', 'nom' => 'Idrissi', 'telephone' => '+212 6 61 22 33 44', 'actif' => false]); $q = array_values(array_filter(c('equipe')['json']['equipe'] ?? [], fn($a) => $a['id'] === $qid));
+t('personne désactivée', $q && $q[0]['actif'] === false, json_encode($q));
+
 echo "Logement et propriétaire\n";
 $r = c('proprietaire_save', ['nom' => 'Mme Propriétaire Test', 'email' => 'proprio@test.invalid', 'plafond' => '500']); $pid = (int)($r['json']['id'] ?? 0); t('propriétaire créé', $pid > 0, $r['body']);
 $r = c('logement_save', ['nom' => 'Villa Test', 'ville' => 'Marrakech', 'adresse' => 'Route de Fès', 'proprietaire_id' => $pid, 'acces' => 'Boîte à clés à gauche du portail', 'code' => '4719',

@@ -5,7 +5,7 @@
 require_once __DIR__ . '/contrats_lib.php';
 require_once __DIR__ . '/report_lib.php';
 
-const DEMO_DIRIGEANT = ['email' => 'direction@demo-amaya.fr', 'nom' => 'Yasmine Bennani'];
+const DEMO_DIRIGEANT = ['email' => 'direction@demo-keylia.ma', 'nom' => 'Yasmine Bennani'];
 const DEMO_CONCURRENTS = ['Atelier Solène', 'Belle Rive', 'Nordé', 'Verde Nature', 'Maison Iris', 'Kalista'];
 const DEMO_MARQUE = ['email' => 'marque@demo-amaya.fr', 'nom' => 'Sophie Arnaud', 'societe' => 'Maison Orélia Parfums'];
 
@@ -33,13 +33,13 @@ function demo_inscrire(array $in): void {
   $jeton = bin2hex(random_bytes(32));
   demo_base(fn() => db()->prepare("INSERT INTO demo_leads (prenom, nom, agence, email, telephone, equipe, metier, jeton, ip, created_at) VALUES (?,?,?,?,?,?,?,?,?,?)")->execute([...array_values($L), hash('sha256', $jeton), $ip, now()]));
   $lien = rtrim((string)(defined('BASE_URL') ? BASE_URL : ''), '/') . '/demo.php?acces=' . $jeton;
-  $css = 'font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#16123A;line-height:1.55';
+  $css = 'font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#2C2F34;line-height:1.55';
   if (!demo_mail($L['email'], 'Votre démo ' . PRODUIT_NOM . ' est prête', '<div style="' . $css . '"><p>Bonjour ' . h($L['prenom']) . ',</p><p>Votre conciergerie de démonstration ' . PRODUIT_NOM . ' vous attend. Elle est à vous seul(e) pendant ' . DEMO_JOURS . ' jours : ce que vous y saisissez n\'est visible par personne d\'autre.</p>'
-    . '<p><a href="' . h($lien) . '" style="display:inline-block;background:#6A4BFF;color:#fff;padding:12px 20px;border-radius:10px;text-decoration:none;font-weight:bold">Ouvrir ma démo</a></p><p style="color:#6E6A8F;font-size:13px">Ce lien est personnel. Si le bouton ne marche pas, copiez cette adresse : ' . h($lien) . '</p></div>'))
+    . '<p><a href="' . h($lien) . '" style="display:inline-block;background:#43515C;color:#fff;padding:12px 20px;border-radius:10px;text-decoration:none;font-weight:bold">Ouvrir ma démo</a></p><p style="color:#6E6A8F;font-size:13px">Ce lien est personnel. Si le bouton ne marche pas, copiez cette adresse : ' . h($lien) . '</p></div>'))
     throw new RuntimeException('L\'e-mail n\'a pas pu partir. Vérifiez votre adresse ou réessayez dans un instant.');
   $pour = defined('AMAYA_LEADS') ? AMAYA_LEADS : AG_EMAIL;
   if ($pour) demo_mail($pour, 'Nouvelle demande de démo : ' . $L['agence'], '<div style="' . $css . '"><p><b>' . h($L['prenom'] . ' ' . $L['nom']) . '</b>, ' . h($L['agence']) . '</p><p>E-mail : ' . h($L['email']) . '<br>Téléphone : ' . h($L['telephone'])
-    . '<br>Taille de l\'équipe : ' . h($L['equipe'] ?: 'non précisée') . '<br>Métier : ' . h($L['metier'] ?: 'non précisé') . '</p><p>Le lien lui a été envoyé. Rappelez-le pendant qu\'il découvre la démo.</p></div>');
+    . '<br>Logements gérés : ' . h($L['equipe'] ?: 'non précisé') . '<br>Ville : ' . h($L['metier'] ?: 'non précisée') . '</p><p>Le lien lui a été envoyé. Rappelez-le pendant qu\'il découvre la démo.</p></div>');
 }
 /** Lien reçu par e-mail : ouvre la démo personnelle (créée au premier passage). Renvoie l'id du visiteur, ou 0. */
 function demo_ouvrir(string $jeton): int {

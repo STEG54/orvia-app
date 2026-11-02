@@ -7,7 +7,8 @@ const nm = a => { const p = String(a.prenom || "").toLowerCase().replace(/(^|[\s
 const byNom = (x, y) => String(x.nom).localeCompare(String(y.nom), "fr", {sensitivity:"base"}) || String(x.prenom).localeCompare(String(y.prenom), "fr", {sensitivity:"base"});
 // Deux espaces : Reporting (selon les droits) et Administration (direction seulement).
 const ALL_TABS = [["rapports","Comptes rendus"],["client","Rapports d'animation"],["evts","Rapports événementiels"],["merch","Rapports merchandising"],["objectifs","Objectifs"],["photos","Photothèque"],["animatrices","Intervenants","tout"],["documents","Documents","gestion"],["marques","Marques","tout"],["formations","Formations","tout"],["magasins","Points d'intervention","tout"],["envois","Envois"],["clients","Espace marques","tout"],["admins","Administrateurs","gestion"],["gestion","Administration","gestion"]];
-const ADM_SUBS = [...CZ_SUBS, ["devis","Devis"],["factures","Factures"],["clients","Clients"],["animatrices","Équipe"],["documents","Documents"],["reglages","Réglages"],["maintenance","Maintenance"],["admins","Administrateurs"]];
+// Keylia : les écrans de l'ancien métier (devis, factures, clients, documents de paie, fiches d'animation) ne sont pas proposés à une conciergerie.
+const ADM_SUBS = [...CZ_SUBS, ["reglages","Réglages"],["maintenance","Maintenance"],["admins","Administrateurs"]];
 // Onglets rangés dans Administration pour la direction (les autres administrateurs qui y ont droit les gardent dans Reporting).
 const ADM_TABS = ["admins", "animatrices", "documents", "formations", "marques", "magasins"];
 const TABS = () => ALL_TABS.filter(t => (!t[2] || (t[2] === "gestion" ? !!(A.L.moi || {}).gestion : can(t[2]))));

@@ -40,7 +40,7 @@ if command -v moto_server >/dev/null || [ -n "${S3_TEST_ENDPOINT:-}" ]; then
 else echo "== Copie hors du serveur : non testée (ni moto_server ni S3_TEST_ENDPOINT)"; fi
 echo "== Démo et non-régression métier"
 # La démo se connecte avec le dirigeant fictif de demo_lib.php (DEMO_DIRIGEANT).
-installe "$tmp/demo" amaya_ci_demo "$((PORT_BASE + 1))" direction@demo-amaya.fr
+installe "$tmp/demo" amaya_ci_demo "$((PORT_BASE + 1))" direction@demo-keylia.ma
 cle="cle-ci-$(date +%s)-demo"
 printf "\ndefine('AMAYA_DEMO', true);\ndefine('AMAYA_LEADS', 'leads@test.invalid');\ndefine('AMAYA_DEMO_CLE', '%s');\n" "$cle" >> "$tmp/demo/config.php"
 # Le moteur d'origine (devis, paie, contrats…) est testé sur son jeu de démo complet, Keylia sur sa conciergerie marocaine seule.

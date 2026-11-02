@@ -84,15 +84,15 @@ function vLogin(){
   if (typeof AMAYA_DEMO !== "undefined" && AMAYA_DEMO) { location.href = "demo.php"; return; }
   $("#who").textContent = "";
   const zones = (S.L && S.L.zones) || [];
-  let zone = "";
+  let zone = zones.length === 1 ? zones[0] : "";
   $("#view").innerHTML = `<div class="card login accent"><h1>Bienvenue</h1>
-    <div class="muted">${AG} est l'application des intervenants de ${AGN} : vos comptes rendus de journée, vos photos et vos formations, depuis votre téléphone.</div>
+    <div class="muted">${AG} est l'application de l'équipe terrain de ${AGN} : vos missions, les accès des logements et les photos de vos interventions, depuis votre téléphone.</div>
     <div class="hint">Cette inscription ne se fait qu'une fois : ce téléphone se souviendra de vous.</div>
     <label>Code ${AG}<input id="code" autocapitalize="characters" autocomplete="off" placeholder="Transmis par votre responsable"></label>
     <div class="row"><label>Prénom<input id="prenom" autocomplete="given-name"></label><label>Nom<input id="nom" autocomplete="family-name"></label></div>
     <label>Téléphone portable<input id="tel" type="tel" inputmode="tel" autocomplete="tel" placeholder="06 12 34 56 78"></label>
-    <label>Adresse e-mail<input id="email" type="email" inputmode="email" autocomplete="email" placeholder="Pour recevoir vos comptes rendus en PDF"></label>
-    <div><div class="muted" style="margin-bottom:6px">Votre zone</div><div class="chips" id="lzone">${zones.map(z => `<button type="button" class="chip" aria-pressed="false" data-v="${z}">${z}</button>`).join("")}</div></div>
+    <label>Adresse e-mail<input id="email" type="email" inputmode="email" autocomplete="email" placeholder="Pour recevoir votre code de connexion"></label>
+    <div${zones.length === 1 ? " hidden" : ""}><div class="muted" style="margin-bottom:6px">Votre zone</div><div class="chips" id="lzone">${zones.map(z => `<button type="button" class="chip" aria-pressed="false" data-v="${z}">${z}</button>`).join("")}</div></div>
     <label class="ck"><input type="checkbox" id="rg1"><span>J'ai lu <a href="confidentialite.php" target="_blank" rel="noopener">l'information sur mes données personnelles</a>.</span></label>
     <label class="ck"><input type="checkbox" id="rg2"><span>J'autorise ${AGN} à transmettre les photos de mes interventions aux propriétaires des logements concernés.</span></label>
     <button class="primary" id="go">Entrer</button>
