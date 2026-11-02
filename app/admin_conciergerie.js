@@ -239,7 +239,7 @@ function czVLogEd(){
     <label>Code d'accès (boîte à clés, serrure) <span class="hint">· chiffré</span><input id="lc" value="${esc(l.code || "")}" autocomplete="off"></label>
     ${czVLivret(l)}
     <label>Calendriers iCal <span class="hint">· un lien par ligne : Airbnb (Annonce › Disponibilités › Exporter le calendrier), Booking (Tarifs et disponibilités › Synchroniser les calendriers)</span><textarea id="li" rows="3" placeholder="https://www.airbnb.fr/calendar/ical/…">${esc(l.ical.join("\n"))}</textarea></label>
-    <h3>Check-list du ménage</h3><div id="lchk">${l.checklist.map((p, i) => czChkRow(p, i)).join("")}</div><button class="btn ghost" id="laddp">Ajouter une pièce</button>
+    <h3>Check-list du ménage</h3><div class="hint">Partir d'un modèle : ${Object.keys(CZ_MODELES_LOG).map(k => `<button type="button" class="btn ghost" data-lmod="${esc(k)}" style="padding:6px 10px">${esc(k)}</button>`).join(" ")} <span>puis ajustez.</span></div><div id="lchk">${l.checklist.map((p, i) => czChkRow(p, i)).join("")}</div><button class="btn ghost" id="laddp">Ajouter une pièce</button>
     <label>Notes internes<textarea id="lno" rows="2">${esc(l.notes || "")}</textarea></label>
     ${l.id ? `<label class="chk"><input type="checkbox" id="lact" ${l.actif ? "checked" : ""}> Logement actif</label>` : ""}
     <button class="primary" id="lsave">Enregistrer</button></div>`;
@@ -248,6 +248,8 @@ const czChkRow = (p, i) => `<div class="chkrow" style="display:grid;grid-templat
 function czLireChk(){ return [...document.querySelectorAll("[data-cp]")].map(x => { const i = x.dataset.cp; return {piece:x.value.trim(), consignes:$(`[data-cc="${i}"]`).value.trim(), photos:+$(`[data-cn="${i}"]`).value}; }).filter(p => p.piece); }
 function czBLogEd(){
   $("#lback").onclick = () => { CZ.ed = null; czRe(); };
+  document.querySelectorAll("[data-lmod]").forEach(b => b.onclick = () => { if (CZ.ed.id && !confirm("Remplacer la check-list actuelle par le modèle « " + b.dataset.lmod + " » ?")) return;
+    CZ.ed.checklist = CZ_MODELES_LOG[b.dataset.lmod].map(([piece, photos, consignes]) => ({piece, photos, consignes:consignes || ""})); $("#lchk").innerHTML = CZ.ed.checklist.map((p, i) => czChkRow(p, i)).join(""); czBDel(); });
   $("#laddp").onclick = () => { CZ.ed.checklist = czLireChk(); CZ.ed.checklist.push({piece:"", photos:1}); $("#lchk").innerHTML = CZ.ed.checklist.map((p, i) => czChkRow(p, i)).join(""); czBDel(); };
   const czBDel = () => document.querySelectorAll("[data-cdel]").forEach(b => b.onclick = () => { const L = czLireChk(); L.splice(+b.dataset.cdel, 1); CZ.ed.checklist = L; $("#lchk").innerHTML = L.map((p, i) => czChkRow(p, i)).join(""); czBDel(); });
   czBDel(); czBLivret();
@@ -380,7 +382,7 @@ function czVSrv(){
         <label>Commander au moins (heures avant)<input id="sh" type="number" min="0" max="240" value="${e.delai_h ?? 24}" style="width:110px"></label><label>Ordre<input id="so" type="number" value="${e.ordre ?? 0}" style="width:80px"></label>
         ${e.id ? `<label style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="sa" ${+e.actif ? "checked" : ""}> Proposé aux voyageurs</label>` : ""}</div>
       <div class="hint" id="smg"></div><div style="display:flex;gap:8px"><button class="primary" id="sok">Enregistrer</button><button class="btn ghost" id="sko">Annuler</button></div></div>` : "";
-  return `${form}<div class="card"><div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center"><h2>Le menu « À votre arrivée »</h2>${CZ.ini.gerer && !e ? `<button class="primary" id="snew">Ajouter un service</button>` : ""}</div>
+  return `${form}<div class="card"><div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center"><h2>Le menu « À votre arrivée »</h2>${CZ.ini.gerer && !e ? `<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" id="scat">Choisir dans le catalogue</button><button class="primary" id="snew">Ajouter un service</button></div>` : ""}</div>${CZ.srvCat ? czVCat() : ""}
     <div class="hint">Le voyageur commande depuis son lien, avant d'arriver. Vous fixez le prix, vous notez votre coût réel : la différence est votre marge. Le règlement passe par vous (sur place ou avec la réservation), jamais par ${esc(typeof PRODUIT !== "undefined" && PRODUIT.nom ? PRODUIT.nom : "le logiciel")}.</div>
     ${S.services.length ? `<div class="scroll"><table class="tbl"><thead><tr><th>Service</th><th>Prix</th><th>Coût</th><th>Marge</th><th>Délai</th><th></th></tr></thead><tbody>${S.services.map(s => `<tr style="${+s.actif ? "" : "opacity:.5"}"><td><b>${esc(s.nom)}</b><div class="hint">${esc(s.description || "")}</div></td><td>${czDH(s.prix)}</td><td>${czDH(s.cout)}</td><td><b>${czDH(s.prix - s.cout)}</b>${+s.prix ? `<div class="hint">${Math.round((s.prix - s.cout) / s.prix * 100)} %</div>` : ""}</td><td>${s.delai_h} h</td><td>${CZ.ini.gerer ? `<button class="btn ghost" data-se="${s.id}">Modifier</button>` : ""}</td></tr>`).join("")}</tbody></table></div>` : `<div class="muted">Aucun service. Commencez par l'eau, les fruits, quelques courses et le transfert depuis l'aéroport.</div>`}</div>
     <div class="card"><h2>Ce que rapportent les services</h2><div class="hint">Du ${esc(czD(S.from))} au ${esc(czD(S.to))}</div>
@@ -388,6 +390,11 @@ function czVSrv(){
       ${M.lignes.length ? `<table class="tbl"><thead><tr><th>Service</th><th>Quantité</th><th>Encaissé</th><th>Marge</th></tr></thead><tbody>${M.lignes.map(l => `<tr><td>${esc(l.nom)}</td><td>${+l.n}</td><td>${czDH(l.ca)}</td><td>${czDH(l.marge)}</td></tr>`).join("")}</tbody></table>` : `<div class="muted">Aucune commande ce mois-ci.</div>`}</div>`;
 }
 function czBSrv(){
+  if ($("#scat")) $("#scat").onclick = () => { CZ.srvCat = !CZ.srvCat; czRe(); };
+  if ($("#catx")) $("#catx").onclick = () => { CZ.srvCat = false; czRe(); };
+  if ($("#catok")) $("#catok").onclick = async () => { const L = [...document.querySelectorAll("[data-cat]:checked")]; if (!L.length) return toast("Cochez au moins un service.");
+    try { for (const c of L) { const i = +c.dataset.cat, x = CZ_CATALOGUE[i]; await czapi("service_save", {nom:x[0], nom_en:x[1], nom_ar:x[2], description:x[3], prix:$(`[data-catp="${i}"]`).value, cout:$(`[data-catc="${i}"]`).value, delai_h:x[6], ordre:CZ.srv.services.length + i}); }
+      CZ.srvCat = false; toast(L.length + " service(s) ajouté(s) : vérifiez les prix."); czRe(); } catch(e) { toast(e.message); } };
   if ($("#snew")) $("#snew").onclick = () => { CZ.srvEd = {delai_h:24, ordre:CZ.srv.services.length}; czRe(); };
   document.querySelectorAll("[data-se]").forEach(b => b.onclick = () => { CZ.srvEd = Object.assign({}, CZ.srv.services.find(s => +s.id === +b.dataset.se)); czRe(); });
   if (!$("#se")) return;
@@ -677,7 +684,15 @@ function czVInt(){
       <div class="row3"><label>Ou artisan extérieur<input id="epr" value="${esc(ed.prestataire || "")}" placeholder="Froid Service, 06 …"></label><label style="grid-column:span 2">Consignes<input id="eco" value="${esc(ed.consignes || "")}"></label></div>
       <div class="hint">La mission de maintenance est créée sept jours avant l'échéance, puis la date suivante est calculée.</div>
       <div style="display:flex;gap:8px"><button class="primary" id="es">Enregistrer</button><button class="btn ghost" id="ex">Annuler</button>${ed.id ? `<button class="btn ghost" id="ed" style="margin-left:auto">Arrêter cet entretien</button>` : ""}</div></div>` : "";
-  return `${alerte.length ? `<div class="card accent"><b>Linge à surveiller :</b> ${alerte.map(a => `${esc(a.nom)} (${a.disponible} disponible${a.disponible > 1 ? "s" : ""} pour ${a.besoin} à poser dans les trois jours)`).join(" · ")}</div>` : ""}
+  const sugg = g ? czEntSuggestions() : [], kitsVides = logs.filter(l => !Object.values(L.kits[l.id] || {}).some(q => q > 0));
+  const depart = g && (!A.length || (A.length && kitsVides.length) || A.some(a => !a.stock)) ? `<div class="card accent" style="display:grid;gap:8px"><b>Démarrer sans tout saisir</b>
+      ${!A.length ? `<div>Créer la liste habituelle : ${CZ_LINGE_BASE.map(x => esc(x[0])).join(", ")}. <button class="primary" id="lbase">Créer la liste</button></div>` : ""}
+      ${A.length && kitsVides.length ? `<div>${kitsVides.length} logement${kitsVides.length > 1 ? "s" : ""} sans kit : Keylia propose un kit d'après les pièces de chaque logement (chambres, salles de bain, cuisine). <button class="btn" id="lkitp">Proposer les kits</button></div>` : ""}
+      ${A.length && !kitsVides.length && A.some(a => !a.stock) ? `<div>Stock conseillé : trois jeux par kit (un posé, un à la blanchisserie, un en réserve). <button class="btn" id="lstp">Calculer les stocks manquants</button></div>` : ""}</div>` : "";
+  const suggC = sugg.length ? `<div class="card" style="display:grid;gap:8px"><div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:center"><h3 style="margin:0">Entretiens conseillés</h3><button class="btn" id="esall">Tout programmer (${sugg.length})</button></div>
+      <div class="hint">D'après les pièces de chaque logement. La première intervention est placée dans les deux à six semaines, à ajuster ensuite.</div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px">${sugg.map((x, i) => `<button class="btn ghost" data-esg="${i}" style="padding:6px 10px">+ ${esc(x.logement)} · ${esc(x.titre)}</button>`).join("")}</div></div>` : "";
+  return `${depart}${alerte.length ? `<div class="card accent"><b>Linge à surveiller :</b> ${alerte.map(a => `${esc(a.nom)} (${a.disponible} disponible${a.disponible > 1 ? "s" : ""} pour ${a.besoin} à poser dans les trois jours)`).join(" · ")}</div>` : ""}
     <div class="card" style="display:grid;gap:10px"><div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center"><h2 style="margin:0">Linge</h2>
       ${g ? `<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="primary" id="lenv">Envoyer à la blanchisserie</button><button class="btn" id="lart">Ajouter un article</button></div>` : ""}</div>
       <div class="muted">Le linge sale est compté d'après les ménages faits et le kit de chaque logement : ${L.menages_depuis} ménage${L.menages_depuis > 1 ? "s" : ""} depuis le dernier envoi (${esc(czD(L.depuis))}). ${L.menages_3j} ménage${L.menages_3j > 1 ? "s" : ""} prévu${L.menages_3j > 1 ? "s" : ""} dans les trois jours.</div>
@@ -696,13 +711,22 @@ function czVInt(){
       ${g ? `<button class="btn" id="lkit" style="margin-top:10px">Enregistrer les kits</button>` : ""}</div>` : ""}
     <div class="card" style="display:grid;gap:10px"><div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center"><h2 style="margin:0">Entretien programmé</h2>${g ? `<button class="primary" id="enew">Programmer un entretien</button>` : ""}</div>
       <div class="muted">Climatisation, piscine, désinsectisation, chauffe-eau : chaque entretien revient seul dans les missions, à la bonne date, et apparaît chez le propriétaire une fois fait.</div></div>
-    ${entForm}
+    ${entForm}${suggC}
     <div class="card"><div class="scroll"><table class="tbl"><thead><tr><th>Logement</th><th>Entretien</th><th>Fréquence</th><th>Dernière fois</th><th>Intervention prévue</th><th>Suivante</th><th></th></tr></thead><tbody>
       ${I.entretiens.map(e => `<tr><td>${esc(e.logement)}</td><td>${esc(e.titre)}${e.prestataire ? `<div class="hint">${esc(e.prestataire)}</div>` : ""}</td><td>tous les ${e.frequence_jours} jours</td><td>${e.derniere_faite ? esc(czD(e.derniere_faite)) : "–"}</td>
         <td>${e.mission ? `${esc(czD(e.mission.date))} ${e.retard ? `<span class="pill p-bad">En retard</span>` : czSt(e.mission.statut)}` : "–"}</td><td>${esc(czD(e.prochaine))}</td><td>${g ? `<button class="btn" data-eed="${e.id}">Modifier</button>` : ""}</td></tr>`).join("") || `<tr><td colspan="7" class="muted">Aucun entretien programmé.</td></tr>`}</tbody></table></div></div>`;
 }
 function czBInt(){
-  const I = CZ.int, act = async (a, b, ok) => { try { const r = await czapi(a, b); toast(ok(r)); czRe(); } catch(e) { toast(e.message); } };
+  const I = CZ.int, sugg = czEntSuggestions();
+  if ($("#lbase")) $("#lbase").onclick = async () => { try { for (const [nom, px] of CZ_LINGE_BASE) await czapi("linge_article_save", {nom, stock:0, prix_lavage:px}); toast("Liste créée : prix de lavage indicatifs, à ajuster."); czRe(); } catch(e) { toast(e.message); } };
+  if ($("#lkitp")) $("#lkitp").onclick = async () => { const ids = Object.fromEntries(I.linge.articles.map(a => [a.nom, a.id]));
+    try { for (const l of CZ.ini.logements.filter(l => l.actif && !Object.values(I.linge.kits[l.id] || {}).some(q => q > 0))) { const k = czKitPropose(l), kit = {}; for (const [n, q] of Object.entries(k)) if (ids[n]) kit[ids[n]] = q; await czapi("linge_kit_save", {logement_id:l.id, kit}); }
+      toast("Kits proposés : vérifiez-les dans le tableau."); czRe(); } catch(e) { toast(e.message); } };
+  if ($("#lstp")) $("#lstp").onclick = async () => { try { for (const a of I.linge.articles.filter(a => !a.stock)) { const tot = Object.values(I.linge.kits).reduce((s, k) => s + (k[a.id] || 0), 0); await czapi("linge_article_save", {id:a.id, nom:a.nom, stock:tot * 3, prix_lavage:a.prix_lavage}); } toast("Stocks calculés."); czRe(); } catch(e) { toast(e.message); } };
+  const prog = (x, i) => czapi("entretien_save", {logement_id:x.logement_id, titre:x.titre, frequence_jours:x.frequence_jours, prochaine:czIso(new Date(Date.now() + (14 + (i % 5) * 7) * 864e5)), heure:"10:00"});
+  document.querySelectorAll("[data-esg]").forEach(b => b.onclick = async () => { try { await prog(sugg[+b.dataset.esg], +b.dataset.esg); toast("Entretien programmé."); czRe(); } catch(e) { toast(e.message); } });
+  if ($("#esall")) $("#esall").onclick = async () => { try { for (const [i, x] of sugg.entries()) await prog(x, i); toast(sugg.length + " entretiens programmés."); czRe(); } catch(e) { toast(e.message); } };
+  const act = async (a, b, ok) => { try { const r = await czapi(a, b); toast(ok(r)); czRe(); } catch(e) { toast(e.message); } };
   if ($("#lenv")) $("#lenv").onclick = () => { $("#lenvf").hidden = false; };
   if ($("#lgo")) $("#lgo").onclick = () => act("linge_envoyer", {blanchisserie:$("#lbl").value, note:$("#lno").value}, () => "Envoi enregistré.");
   if ($("#lart")) $("#lart").onclick = () => { $("#lartf").hidden = false; $("#lan").focus(); };
@@ -719,4 +743,47 @@ function czBInt(){
   const body = sup => ({id:CZ.entEd.id || 0, logement_id:$("#elog").value, titre:$("#etit").value, frequence_jours:$("#efr").value, prochaine:$("#epro").value, heure:$("#eh").value, animatrice_id:$("#eag").value, prestataire:$("#epr").value, consignes:$("#eco").value, supprimer:sup});
   if ($("#es")) $("#es").onclick = async () => { try { const r = await czapi("entretien_save", body(false)); CZ.entEd = null; toast(r.missions_creees ? "Entretien programmé : mission créée." : "Entretien programmé."); czRe(); } catch(e) { toast(e.message); } };
   if ($("#ed")) $("#ed").onclick = async () => { if (!confirm("Arrêter cet entretien ? Les missions déjà créées restent.")) return; try { await czapi("entretien_save", body(true)); CZ.entEd = null; czRe(); } catch(e) { toast(e.message); } };
+}
+
+/* ---------- Propositions toutes prêtes : la conciergerie coche et ajuste au lieu de tout saisir ---------- */
+const CZ_MODELES_LOG = {
+  "Studio": [["Pièce principale", 3], ["Salle de bain", 2], ["Coin cuisine", 2], ["Entrée et clés", 1, "Boîte à clés refermée, code brouillé"]],
+  "Appartement 2 chambres": [["Chambre principale", 2], ["Deuxième chambre", 2], ["Salle de bain", 2], ["Cuisine", 2, "Réfrigérateur vidé, poubelles sorties"], ["Salon", 2], ["Entrée et clés", 1, "Boîte à clés refermée, code brouillé"]],
+  "Villa avec piscine": [["Chambre principale", 3], ["Chambres d'amis", 2], ["Salles de bain", 2], ["Cuisine", 2, "Réfrigérateur vidé, poubelles sorties"], ["Salon", 2], ["Terrasse et piscine", 2, "Transats alignés, serviettes de piscine posées"], ["Jardin", 1], ["Entrée et clés", 1, "Boîte à clés refermée, code brouillé"]],
+  "Riad": [["Chambres", 3], ["Salles de bain", 2], ["Patio", 2, "Fontaine propre, coussins en place"], ["Terrasse", 2], ["Cuisine", 2, "Réfrigérateur vidé, poubelles sorties"], ["Entrée et clés", 1, "Porte verrouillée, clés rangées"]]};
+// [français, anglais, darija, description, prix indicatif, coût indicatif, délai (h)] : à ajuster par chaque conciergerie.
+const CZ_CATALOGUE = [
+  ["Eau minérale, six bouteilles", "Mineral water, six bottles", "ماء معدني، ستة قراعي", "Posées au frais avant votre arrivée", 60, 25, 12],
+  ["Panier de bienvenue", "Welcome basket", "سلة الترحيب", "Thé à la menthe, pâtisseries marocaines, fruits secs", 150, 60, 24],
+  ["Corbeille de fruits de saison", "Seasonal fruit basket", "سلة ديال الفواكه ديال الموسم", "Fruits du marché, sur la table de la cuisine", 180, 70, 24],
+  ["Petit-déjeuner du premier matin", "First-morning breakfast", "فطور الصباح الأول", "Pain, msemen, confiture, jus d'orange, café", 250, 110, 24],
+  ["Courses selon votre liste", "Groceries from your list", "التقدية حسب اللائحة ديالك", "Hors prix des produits, réglés sur ticket", 200, 80, 24],
+  ["Transfert depuis l'aéroport", "Airport transfer", "النقل من المطار", "Chauffeur à l'arrivée, suivi de votre vol", 450, 300, 24],
+  ["Ménage pendant le séjour", "Mid-stay cleaning", "التنظيف وسط الإقامة", "Ménage complet et linge changé", 300, 150, 24],
+  ["Arrivée tardive", "Late check-in", "الوصول متأخر", "Accueil en personne après 22 h", 150, 80, 12],
+  ["Kit bébé", "Baby kit", "لوازم البيبي", "Lit parapluie, chaise haute, baignoire", 150, 20, 48],
+  ["Chef à domicile", "Private chef", "طباخ فالدار", "Dîner marocain pour quatre personnes, courses comprises", 1200, 800, 48],
+  ["Hammam et massage à domicile", "Hammam and massage at home", "حمام و مساج فالدار", "Une heure par personne, praticienne diplômée", 600, 420, 48]];
+function czVCat(){
+  const deja = new Set(CZ.srv.services.map(s => s.nom));
+  return `<div class="card accent" style="display:grid;gap:10px;margin-top:12px"><h3 style="margin:0">Catalogue des services</h3><div class="hint">Cochez ceux que vous proposez. Les prix sont indicatifs : ajustez-les à votre ville et à vos fournisseurs. Les noms sont déjà traduits en anglais et en darija.</div>
+    <div class="scroll"><table class="tbl"><thead><tr><th></th><th>Service</th><th>Prix voyageur (DH)</th><th>Votre coût (DH)</th></tr></thead><tbody>
+    ${CZ_CATALOGUE.map((x, i) => `<tr${deja.has(x[0]) ? ' style="opacity:.5"' : ""}><td><input type="checkbox" data-cat="${i}" ${deja.has(x[0]) ? "disabled" : ""}></td><td><b>${esc(x[0])}</b><div class="hint">${esc(x[3])}${deja.has(x[0]) ? " · déjà proposé" : ""}</div></td>
+      <td><input data-catp="${i}" type="number" min="0" value="${x[4]}" style="max-width:100px"></td><td><input data-catc="${i}" type="number" min="0" value="${x[5]}" style="max-width:100px"></td></tr>`).join("")}</tbody></table></div>
+    <div style="display:flex;gap:8px"><button class="primary" id="catok">Ajouter la sélection</button><button class="btn ghost" id="catx">Fermer</button></div></div>`;
+}
+const CZ_LINGE_BASE = [["Drap double", 12], ["Housse de couette", 15], ["Taie d'oreiller", 4], ["Serviette de bain", 6], ["Serviette de main", 4], ["Tapis de bain", 5], ["Torchon", 3]];
+/** Kit proposé d'après les pièces de la check-list : une parure par chambre, une serviette de bain et de main par personne (deux par chambre), un tapis par salle de bain, deux torchons par cuisine. */
+function czKitPropose(l){
+  const P = (l.checklist || []).map(p => String(p.piece).toLowerCase()), n = re => P.filter(p => re.test(p)).reduce((s, p) => s + (/s$|amis|chambres/.test(p) && !/principale/.test(p) ? 2 : 1), 0);
+  const ch = Math.max(1, n(/chambre|pièce principale/)), sdb = Math.max(1, n(/bain|douche/)), cu = P.some(p => /cuisine/.test(p)) ? 1 : 0;
+  return {"Drap double":ch, "Housse de couette":ch, "Taie d'oreiller":ch * 2, "Serviette de bain":ch * 2, "Serviette de main":ch * 2, "Tapis de bain":sdb, "Torchon":cu * 2};
+}
+const CZ_ENT_SUGG = [["Entretien de la climatisation", 90, () => true], ["Désinsectisation", 90, () => true], ["Détartrage du chauffe-eau", 365, () => true], ["Contrôle de l'extincteur", 365, () => true],
+  ["Nettoyage de la piscine", 7, P => P.some(p => /piscine/.test(p))], ["Jardin et arrosage", 14, P => P.some(p => /jardin/.test(p))]];
+function czEntSuggestions(){
+  const I = CZ.int, fait = new Set(I.entretiens.map(e => e.logement_id + "|" + e.titre)), out = [];
+  CZ.ini.logements.filter(l => l.actif).forEach(l => { const P = (l.checklist || []).map(p => String(p.piece).toLowerCase());
+    CZ_ENT_SUGG.forEach(([t, f, ok]) => { if (ok(P) && !fait.has(l.id + "|" + t)) out.push({logement_id:l.id, logement:l.nom, titre:t, frequence_jours:f}); }); });
+  return out;
 }
