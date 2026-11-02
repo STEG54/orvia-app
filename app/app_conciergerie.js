@@ -12,7 +12,7 @@ const CZT = {
     bloquant:"السكن ما يقدرش يستقبل الضيوف", envoyer:"صيفط", annuler:"إلغاء", merci:"المهمة سالات. شكرا!", attente:"تصاور كيتسناو الريزو", docs:"الوثائق ديالي", fiche:"البطاقة ديالي",
     signale:"المشكل وصل للكونسيرجري.", consigne:"التعليمات", envoi:"كيتصيفط…", langue:"Français", nmission:"مهمة", nmissions:"مهام", premiere:"الأولى مع", rien:"ما كاين والو اليوم.", accueil:"الاستقبال", transfert:"النقل", visite:"الزيارة", autre:"أخرى", pieces:"بيوت سالاو", maps:"الطريق", repere:"علامة", chemin:"الطريق للدار", code:"الكود", jarrive:"وصلت", commence:"المهمة بدات", pos:"البلاصة ديالك كاتتسجل غير ملي كاتضغط على «وصلت» و«سالي المهمة»."}
 };
-const CZ_TYPE_C = {menage:"#1C2B45", controle:"#A07A38", maintenance:"#A65A3A", accueil:"#3A6E8F", transfert:"#3A6E8F", visite:"#6B5B95", autre:"#5A5F5B"};
+const CZ_TYPE_C = {menage:"#3D6253", controle:"#A07A38", maintenance:"#A65A3A", accueil:"#3A6E8F", transfert:"#3A6E8F", visite:"#6B5B95", autre:"#5A5F5B"};
 const czPill = st => st === "faite" ? "p-ok" : st === "refusee" ? "p-bad" : st === "en_cours" ? "p-warn" : "p-todo";
 let CZL = (() => { try { return localStorage.getItem("orvia-agent-l") || "fr"; } catch(e) { return "fr"; } })();
 const czt = k => (CZT[CZL] || CZT.fr)[k] || k;
@@ -85,7 +85,7 @@ function czMis(){
       ${(V.etapes || []).length ? `<details><summary><b>${czt("chemin")}</b></summary>${V.etapes.map((e, i) => `<div style="margin-top:8px">${e.photo ? `<img src="${esc(e.photo)}" alt="" loading="lazy" style="width:100%;max-height:260px;object-fit:cover;display:block">` : ""}<div>${i + 1}. ${esc(e.texte)}</div></div>`).join("")}</details>` : ""}
       ${m.kit_linge ? `<div><b>${czt("linge")} :</b> ${esc(m.kit_linge)}</div>` : ""}</div>` : ""}
     ${fini ? "" : m.commence ? "" : `<div class="card" style="display:grid;gap:8px"><button class="primary kt-big" id="czgo">${czt("jarrive")}</button><div class="hint">${czt("pos")}</div></div>`}
-    ${nP ? `<div style="display:flex;justify-content:space-between;align-items:center;margin:14px 2px 6px"><b style="color:var(--nuit)">${nOk}/${nP} ${czt("pieces")}</b>${m.commence && !fini ? `<span class="pill p-warn">${czt("commence")}</span>` : ""}</div><div class="kt-prog" style="margin-bottom:12px"><i style="width:${nP ? Math.round(nOk / nP * 100) : 0}%"></i></div>` : ""}
+    ${nP ? `<div style="display:flex;justify-content:space-between;align-items:center;margin:14px 2px 6px"><b style="color:var(--vert)">${nOk}/${nP} ${czt("pieces")}</b>${m.commence && !fini ? `<span class="pill p-warn">${czt("commence")}</span>` : ""}</div><div class="kt-prog" style="margin-bottom:12px"><i style="width:${nP ? Math.round(nOk / nP * 100) : 0}%"></i></div>` : ""}
     ${m.pieces.map((p, i) => `<div class="card kt-piece ${p.ok ? "ok" : ""}" style="display:grid;gap:8px"><div style="display:flex;justify-content:space-between;gap:8px;align-items:center"><b style="font-size:16px">${esc(p.piece)}</b>${p.ok ? `<span class="pill p-ok">✓</span>` : `<span class="pill p-todo">📷 ${p.urls.length}/${p.photos}</span>`}</div>
       ${p.consignes ? `<div class="hint">${esc(p.consignes)}</div>` : ""}
       ${p.urls.length ? `<div style="display:flex;gap:6px;flex-wrap:wrap">${p.urls.map(u => `<img src="${esc(u)}" alt="" style="width:76px;height:76px;object-fit:cover;border-radius:4px">`).join("")}</div>` : ""}
