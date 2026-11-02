@@ -130,4 +130,23 @@ function cz_demo_seed(): void {
   }
   foreach ([[3, 'Robinet extérieur de la piscine changé', 280, -38], [0, 'Climatisation du salon rechargée', 650, -27], [2, 'Serrure de la boîte à clés remplacée', 220, -19], [4, 'Store de la chambre réparé', 180, -12]] as [$li, $d, $c, $jj])
     $ii->execute([$LID[$li], 'Équipe Keylia', $d, null, 0, 'clos', $c, 'accepte', demo_j($jj) . ' 10:00:00', demo_j($jj) . ' 17:00:00']);
+  // Relation avec les propriétaires (M. et Mme Lefèvre) : messages, devis avant travaux, rapports envoyés.
+  require_once __DIR__ . '/migrations_lib.php'; mig_8($pdo); $P0 = $P[0]; $dir = DEMO_DIRIGEANT['nom'];
+  $im = $pdo->prepare("INSERT INTO c_prop_messages (proprietaire_id, logement_id, auteur, nom, texte, photos, lu_at, created_at) VALUES (?,?,?,?,?,?,?,?)");
+  $im->execute([$P0, $LID[0], 'conciergerie', $dir, "Bonjour,\nLa villa est prête pour la famille Martin, qui arrive aujourd'hui en fin d'après-midi. La piscine a été nettoyée ce matin.", json_encode([cz_demo_photo(950, 'Terrasse et piscine'), cz_demo_photo(951, 'Salon')]), demo_j(0) . ' 13:40:00', demo_j(0) . ' 13:30:00']);
+  $im->execute([$P0, null, 'proprietaire', 'M. et Mme Lefèvre', "Merci, c'est parfait. Pouvez-vous vérifier la climatisation de la chambre d'amis ? Les derniers voyageurs l'ont trouvée bruyante.", null, demo_j(0) . ' 14:10:00', demo_j(0) . ' 14:02:00']);
+  $im->execute([$P0, $LID[0], 'conciergerie', $dir, "C'est noté : contrôle prévu mercredi à 10 h. Je vous envoie le rapport de visite juste après.", null, null, demo_j(0) . ' 14:20:00']);
+  $idv = $pdo->prepare("INSERT INTO c_prop_devis (proprietaire_id, logement_id, titre, description, montant, prestataire, photos, statut, reponse, decide_at, paiement, regle_at, par, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
+  $idv->execute([$P0, $LID[1], 'Remplacement du mitigeur de la douche', "Le mitigeur fuit au goutte-à-goutte depuis le dernier séjour. Remplacement par un modèle thermostatique, pose comprise. Intervention possible jeudi entre deux séjours.", 650, 'Plomberie Atlas, Marrakech', json_encode([cz_demo_photo(952, 'Salle de bain')]), 'envoye', null, null, '', null, $dir, demo_j(-1) . ' 16:00:00']);
+  $idv->execute([$P0, $LID[0], 'Traitement anti-moustiques du jardin', "Deux passages à quinze jours d'intervalle, produits sans danger pour les enfants.", 400, 'Jardins de la Palmeraie', null, 'accepte', 'D\'accord, merci.', demo_j(-6) . ' 09:30:00', 'a_regler', null, $dir, demo_j(-7) . ' 18:00:00']);
+  $idv->execute([$P0, $LID[0], 'Recharge de la climatisation du salon', "Recharge en gaz et nettoyage des filtres.", 650, 'Froid Service', null, 'accepte', '', demo_j(-29) . ' 11:00:00', 'regle', demo_j(-24) . ' 10:00:00', $dir, demo_j(-30) . ' 09:00:00']);
+  $prev0 = date('Y-m-01', strtotime('first day of last month')); $prev1 = date('Y-m-t', strtotime('last day of last month'));
+  $irp = $pdo->prepare("INSERT INTO c_prop_rapports (proprietaire_id, type, titre, periode_from, periode_to, mission_id, note, contenu, par, lu_at, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)");
+  $irp->execute([$P0, 'mensuel', 'Rapport du ' . date('d/m/Y', strtotime($prev0)) . ' au ' . date('d/m/Y', strtotime($prev1)), $prev0, $prev1, null,
+    "Un très bon mois pour vos deux logements. Les voyageurs saluent la propreté et l'accueil. La climatisation du salon a été rechargée, la facture est dans vos devis.",
+    json_encode(cz_prop_rapport_contenu($P0, $prev0, $prev1), JSON_UNESCAPED_UNICODE), $dir, date('Y-m-02') . ' 10:00:00', date('Y-m-01') . ' 09:00:00']);
+  $mv = $pdo->query("SELECT id FROM c_missions WHERE logement_id = " . (int)$LID[0] . " AND type = 'menage' AND statut = 'faite' ORDER BY date DESC LIMIT 1")->fetchColumn();
+  if ($mv) { $m = cz_mission((int)$mv); $etat = cz_etat($m); $pc = []; foreach (cz_checklist($m) as $i => $x) $pc[] = ['piece' => $x['piece'], 'ok' => !empty($etat[$i]['ok']), 'photos' => (array)($etat[$i]['photos'] ?? [])];
+    $irp->execute([$P0, 'visite', 'Ménage et contrôle · Villa Palmeraie · ' . date('d/m/Y', strtotime($m['date'])), $m['date'], $m['date'], $mv, 'Logement remis en état après le départ des voyageurs. Rien à signaler.',
+      json_encode(['logement' => $m['logement'], 'type' => 'menage', 'date' => $m['date'], 'fin' => $m['fin_at'], 'pieces' => $pc], JSON_UNESCAPED_UNICODE), $dir, null, $m['date'] . ' 14:00:00']); }
 }

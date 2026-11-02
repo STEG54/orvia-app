@@ -34,6 +34,7 @@ async function czLoad(){
   if (G.sub === "cz_missions") CZ.mis = (await czapi("missions", null, `from=${CZ.misF.from}&to=${CZ.misF.to}`)).missions;
   if (G.sub === "cz_incidents") CZ.inc = (await czapi("incidents", null, "statut=" + CZ.incS)).incidents;
   if (G.sub === "cz_logements" || G.sub === "cz_proprietaires") CZ.ini = await czapi("init");
+  if (G.sub === "cz_proprietaires" && CZ.pfId) CZ.pf = await czapi("prop_fiche", null, "id=" + CZ.pfId);
 }
 function czView(){
   const v = {cz_jour:czVJour, cz_logements:czVLogements, cz_reservations:czVRes, cz_missions:czVMis, cz_incidents:czVInc, cz_proprietaires:czVProp, cz_planning:czVPlan, cz_rapports:czVRap, cz_avis:czVAvis, cz_services:czVSrv, cz_equipe:czVEq, cz_taxe:czVTs}[G.sub];
@@ -60,7 +61,8 @@ function czVJour(){
   const dem = D ? `<div class="card cz-dem"><div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap"><h2 style="margin:0">Bien démarrer avec Keylia</h2><span class="hint">${D.faits} sur ${D.total} étapes · <a href="#" id="demx">masquer</a></span></div>
     <div class="cz-dem-p"><i style="width:${Math.round(100 * D.faits / D.total)}%"></i></div>
     <ol class="cz-dem-l">${D.etapes.map(e => `<li class="${e.fait ? "ok" : e === suiv ? "now" : ""}"><span class="ic">${e.fait ? "✓" : ""}</span><div><b>${esc(e.titre)}</b>${e.fait ? "" : `<div class="hint">${esc(e.aide)}</div>`}</div>${e.fait ? "" : `<button class="${e === suiv ? "primary" : "btn ghost"}" data-dem="${e.onglet}">${e === suiv ? "Commencer" : "Ouvrir"}</button>`}</li>`).join("")}</ol></div>` : "";
-  return `${dem}${qs ? `<div class="card accent"><h2>Questions des voyageurs à traiter</h2><ul>${qs}</ul></div>` : ""}<div class="card"><h2>Arrivées</h2>${arr || `<div class="muted">Aucune arrivée aujourd'hui ni demain.</div>`}</div>
+  const pm = (J.prop_messages || []).map(q => `<li><b>${esc(q.nom)}</b> · ${esc(String(q.texte).slice(0, 140))} <button class="btn ghost" data-pmo="${q.proprietaire_id}">Répondre</button></li>`).join("");
+  return `${dem}${pm ? `<div class="card accent"><h2>Messages des propriétaires</h2><ul>${pm}</ul></div>` : ""}${qs ? `<div class="card accent"><h2>Questions des voyageurs à traiter</h2><ul>${qs}</ul></div>` : ""}<div class="card"><h2>Arrivées</h2>${arr || `<div class="muted">Aucune arrivée aujourd'hui ni demain.</div>`}</div>
     <div class="card"><h2>Missions du jour</h2>${mis ? `<div class="scroll"><table class="tbl"><thead><tr><th>Heure</th><th>Logement</th><th>Type</th><th>Équipe</th><th>État</th></tr></thead><tbody>${mis}</tbody></table></div>` : `<div class="muted">Aucune mission aujourd'hui.</div>`}</div>
     <div class="card"><h2>Signalements ouverts</h2>${inc ? `<ul>${inc}</ul><button class="btn" data-gs="cz_incidents">Tous les signalements</button>` : `<div class="muted">Aucun signalement ouvert.</div>`}</div>`;
 }
@@ -69,6 +71,7 @@ function czBJour(){
   document.querySelectorAll("[data-code]").forEach(b => b.onclick = () => czCode(+b.dataset.code));
   document.querySelectorAll("[data-det]").forEach(b => b.onclick = () => czDetail(+b.dataset.det));
   document.querySelectorAll("[data-mis]").forEach(b => b.onclick = () => czMission(+b.dataset.mis));
+  document.querySelectorAll("[data-pmo]").forEach(b => b.onclick = () => { CZ.pfId = +b.dataset.pmo; G.sub = "cz_proprietaires"; G.ed = null; go("gestion"); });
   document.querySelectorAll("[data-dem]").forEach(b => b.onclick = () => { const k = b.dataset.dem; G.sub = k; G.ed = null; go("gestion"); });
   if ($("#demx")) $("#demx").onclick = async e => { e.preventDefault(); try { await czapi("demarrage_masquer", {}); czRe(); } catch(x) { toast(x.message); } };
 }
@@ -189,13 +192,15 @@ function czVMisDet(){
     ${m.debut ? `<div class="hint">Arrivée ${esc(String(m.debut).slice(11, 16))}${m.debut_pos ? " · " + esc(m.debut_pos) : ""}${m.fin ? ` · départ ${esc(String(m.fin).slice(11, 16))}${m.fin_pos ? " · " + esc(m.fin_pos) : ""}` : ""}${m.duree_reelle != null ? ` · ${m.duree_reelle} min sur place (prévu ${m.duree_prevue})` : ""}</div>` : ""}
     ${m.loin ? `<div><span class="pill p-warn">Position éloignée du logement</span> <span class="hint">À vérifier avec l'agent : le téléphone peut aussi manquer de précision.</span></div>` : ""}
     ${m.manques.length && m.statut !== "faite" ? `<div class="hint">Reste à faire : ${esc(m.manques.join(" · "))}</div>` : ""}
-    ${CZ.ini.gerer && m.statut !== "faite" ? `<button class="btn" id="mwa">Envoyer à l'agent (WhatsApp)</button>` : ""}${CZ.ini.gerer && m.statut === "faite" ? `<button class="btn ghost" id="mrep">Demander de reprendre</button>` : ""}</div>
+    ${CZ.ini.gerer && m.statut !== "faite" ? `<button class="btn" id="mwa">Envoyer à l'agent (WhatsApp)</button>` : ""}${CZ.ini.gerer && m.statut === "faite" ? `<button class="btn ghost" id="mrep">Demander de reprendre</button>` : ""}${CZ.ini.gerer && m.statut === "faite" && czPropDe(m.logement_id) ? ` <button class="btn" id="mprop">Envoyer au propriétaire</button>` : ""}</div>
     ${m.pieces.map(p => `<div class="card"><div style="display:flex;justify-content:space-between"><b>${esc(p.piece)}</b>${p.ok ? `<span class="pill p-ok">Validée</span>` : `<span class="pill">À faire</span>`}</div>${p.consignes ? `<div class="hint">${esc(p.consignes)}</div>` : ""}
       <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">${p.urls.map((u, i) => `<a href="${esc(p.grandes[i])}" target="_blank" rel="noopener"><img src="${esc(u)}" alt="Photo ${esc(p.piece)}" style="width:110px;height:110px;object-fit:cover"></a>`).join("") || `<span class="hint">Aucune photo (${p.photos} demandée(s))</span>`}</div></div>`).join("")}`;
 }
 function czBMisDet(){
   $("#mback").onclick = () => { CZ.mdet = null; czRe(); };
   if ($("#mwa")) $("#mwa").onclick = () => czWaMission(CZ.mdet.id);
+  if ($("#mprop")) $("#mprop").onclick = async () => { const n = prompt("Un mot pour le propriétaire (facultatif) :", "Intervention terminée, tout est en ordre."); if (n === null) return;
+    try { const r = await czapi("prop_rapport_envoyer", {id:czPropDe(CZ.mdet.logement_id), type:"visite", mission_id:CZ.mdet.id, note:n}); czNotif(r, "Rapport de visite envoyé au propriétaire"); } catch(e) { toast(e.message); } };
   if ($("#mrep")) $("#mrep").onclick = async () => { const n = prompt("Ce qui doit être repris :", ""); if (n === null) return; try { await czapi("mission_reprendre", {id:CZ.mdet.id, note:n}); czMission(CZ.mdet.id); } catch(e) { toast(e.message); } };
 }
 
@@ -275,15 +280,18 @@ function czBInc(){
 
 /* ---------- Propriétaires ---------- */
 function czVProp(){
+  if (CZ.pfId && CZ.pf) return czVPf();
   const P = CZ.ini.proprietaires, n = id => CZ.ini.logements.filter(l => +l.proprietaire_id === +id).length;
   return `${CZ.lien ? `<div class="card accent"><h2>Lien de ${esc(CZ.lien.nom)}</h2><div class="muted">Affiché une seule fois. Transmettez-le au propriétaire : il ouvre son espace sans mot de passe. Un nouveau lien annule le précédent.</div>
       <input readonly value="${esc(CZ.lien.url)}" id="plien" style="width:100%"><button class="primary" id="pcop">Copier le lien</button></div>` : ""}
     <div class="card"><div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap"><h2>Propriétaires</h2>${CZ.ini.gerer ? `<button class="primary" id="pnew">Nouveau propriétaire</button>` : ""}</div>
     ${P.length ? `<div class="scroll"><table class="tbl"><thead><tr><th>Nom</th><th>Contact</th><th>Logements</th><th>Espace</th><th></th></tr></thead><tbody>
     ${P.map(p => `<tr><td>${esc(p.nom)}</td><td>${esc(p.email)}<div class="hint">${esc(p.telephone)}</div></td><td>${n(p.id)}</td><td>${+p.lien ? `<span class="pill p-ok">Lien actif</span>` : `<span class="pill">Pas de lien</span>`}</td>
-      <td style="white-space:nowrap">${CZ.ini.gerer ? `<button class="btn" data-ped="${p.id}">Modifier</button> <button class="btn ghost" data-plink="${p.id}">${+p.lien ? "Nouveau lien" : "Créer le lien"}</button>` : ""}</td></tr>`).join("")}</tbody></table></div>` : `<div class="muted">Aucun propriétaire. Créez-le, rattachez-lui ses logements, puis envoyez-lui le lien de son espace.</div>`}</div>`;
+      <td style="white-space:nowrap"><button class="primary" data-pfo="${p.id}">Ouvrir</button> ${CZ.ini.gerer ? `<button class="btn" data-ped="${p.id}">Modifier</button> <button class="btn ghost" data-plink="${p.id}">${+p.lien ? "Nouveau lien" : "Créer le lien"}</button>` : ""}</td></tr>`).join("")}</tbody></table></div>` : `<div class="muted">Aucun propriétaire. Créez-le, rattachez-lui ses logements, puis envoyez-lui le lien de son espace.</div>`}</div>`;
 }
 function czBProp(){
+  if (CZ.pfId && CZ.pf) return czBPf();
+  document.querySelectorAll("[data-pfo]").forEach(b => b.onclick = () => { CZ.pfId = +b.dataset.pfo; CZ.pfRap = null; czRe(); });
   if ($("#pcop")) $("#pcop").onclick = () => czCopier(CZ.lien.url, "Lien copié.");
   const form = p => {
     $("#view").insertAdjacentHTML("afterbegin", `<div class="card accent" id="pf"><h2>${p.id ? "Modifier" : "Nouveau propriétaire"}</h2><label>Nom<input id="pn" value="${esc(p.nom || "")}"></label>
@@ -588,4 +596,68 @@ function czBTs(){
     const plateformes = [...document.querySelectorAll("[data-tsp]:checked")].map(i => i.dataset.tsp);
     try { await czapi("taxe_reglages", {communes, plateformes}); toast("Tarifs enregistrés."); czRe(); } catch(e) { toast(e.message); }
   };
+}
+
+/* ---------- Fiche d'un propriétaire : messages, devis, rapports ---------- */
+const czPropDe = lid => +((CZ.ini.logements.find(l => +l.id === +lid) || {}).proprietaire_id) || 0;
+function czNotif(r, quoi){
+  toast(quoi + (r.mail ? " et prévenu par e-mail." : "."));
+  if (r.wa) { const b = document.createElement("div"); b.className = "card accent"; b.style.cssText = "position:fixed;right:16px;bottom:80px;z-index:200;max-width:340px;display:grid;gap:8px";
+    b.innerHTML = `<b>Prévenir aussi par WhatsApp ?</b><div style="display:flex;gap:8px"><a class="primary btn" href="${esc(r.wa)}" target="_blank" rel="noopener">Ouvrir WhatsApp</a><button class="btn ghost">Non merci</button></div>`;
+    document.body.appendChild(b); b.querySelector("a").onclick = () => setTimeout(() => b.remove(), 300); b.querySelector("button").onclick = () => b.remove(); }
+}
+const czPfSt = d => d.statut === "envoye" ? `<span class="pill p-todo">En attente de sa réponse</span>` : d.statut === "refuse" ? `<span class="pill p-bad">Refusé</span>`
+  : d.paiement === "regle" ? `<span class="pill p-ok">Accepté · réglé</span>` : `<span class="pill p-warn">Accepté · à régler</span>`;
+function czVPf(){
+  const F = CZ.pf, P = F.proprietaire, g = CZ.ini.gerer, R = CZ.pfRap;
+  const optL = `<option value="">Tous ses logements</option>${F.logements.map(l => `<option value="${l.id}">${esc(l.nom)}</option>`).join("")}`;
+  const msgs = F.messages.map(m => `<div class="pf-m ${m.auteur === "proprietaire" ? "lui" : "nous"}"><div class="pf-b">${esc(m.texte).replace(/\n/g, "<br>")}
+      ${m.photos.length ? `<div class="pf-ph">${m.photos.map(x => `<a href="${esc(x.url)}" target="_blank" rel="noopener"><img src="${esc(x.mini)}" alt=""></a>`).join("")}</div>` : ""}</div>
+      <div class="hint">${esc(m.auteur === "proprietaire" ? P.nom : m.nom || "Conciergerie")} · ${esc(czD(m.created_at))} ${esc(String(m.created_at).slice(11, 16))}${m.auteur === "conciergerie" ? (m.lu_at ? " · lu" : " · pas encore lu") : ""}</div></div>`).join("");
+  const apercu = R ? `<div class="card accent" style="display:grid;gap:10px"><h3 style="margin:0">Rapport du ${esc(czD(R.from))} au ${esc(czD(R.to))}</h3>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px">${[[R.c.total.nuits, "nuits louées"], [R.c.total.sejours, "séjours"], [R.c.total.menages_faits, "ménages faits"], [czDH(R.c.total.depenses), "de dépenses"], [czDH(R.c.taxe.montant), "de taxe de séjour"]].map(([v, l]) => `<div><b style="font-size:22px">${v}</b><div class="hint">${l}</div></div>`).join("")}</div>
+      <div class="hint">${R.c.logements.map(l => `${esc(l.nom)} : ${l.nuits} nuits, ${l.occupation} % d'occupation${l.proprete != null ? ", propreté " + czN(l.proprete) + "/5" : ""}`).join(" · ")}</div>
+      <div class="hint">${R.c.photos.length} photo(s) des dernières interventions · ${R.c.avis.length} avis de voyageurs · ${R.c.incidents.length} signalement(s)</div>
+      <label>Votre mot pour le propriétaire<textarea id="prn" rows="3" placeholder="Un bon mois : la villa a été louée 27 nuits, les voyageurs saluent la propreté…"></textarea></label>
+      <label class="chk"><input type="checkbox" id="prp" checked> Joindre les photos</label>
+      <div style="display:flex;gap:8px"><button class="primary" id="prgo">Envoyer le rapport</button><button class="btn ghost" id="prx">Annuler</button></div></div>` : "";
+  return `<button class="btn ghost" id="pfback">‹ Propriétaires</button>
+    <div class="card"><div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:baseline"><h2 style="margin:0">${esc(P.nom)}</h2>${+P.lien ? `<span class="pill p-ok">Espace actif</span>` : `<span class="pill">Espace pas encore ouvert</span>`}</div>
+      <div class="muted">${esc(P.email || "pas d'e-mail")} · ${esc(P.telephone || "pas de téléphone")} · ${F.logements.map(l => esc(l.nom)).join(", ") || "aucun logement"}</div>
+      <div class="hint">Chaque message, devis ou rapport le prévient par e-mail avec le lien de son espace, et vous propose de le prévenir aussi par WhatsApp.</div></div>
+    <div class="pf-grid"><div class="card" style="display:grid;gap:10px"><h3 style="margin:0">Messages</h3><div class="pf-fil" id="pffil">${msgs || `<div class="muted">Aucun message pour l'instant.</div>`}</div>
+      ${g ? `<textarea id="pfm" rows="3" placeholder="Votre message…"></textarea><div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><select id="pfl">${optL}</select><label class="btn" style="cursor:pointer">Photos<input type="file" id="pff" accept="image/*" multiple hidden></label><span class="hint" id="pffn"></span><button class="primary" id="pfs">Envoyer</button></div>` : ""}</div>
+    <div style="display:grid;gap:14px;align-content:start">
+      <div class="card" style="display:grid;gap:10px"><div style="display:flex;justify-content:space-between;gap:8px;align-items:center"><h3 style="margin:0">Devis avant travaux</h3>${g ? `<button class="btn" id="pdn">Nouveau devis</button>` : ""}</div>
+        <div id="pdf" hidden style="display:grid;gap:8px"><select id="pdl">${optL}</select><input id="pdt" placeholder="Objet : remplacement du chauffe-eau"><div class="row3"><input id="pdm" inputmode="decimal" placeholder="Montant en DH"><input id="pdp" placeholder="Artisan ou entreprise"><span></span></div>
+          <textarea id="pdd" rows="3" placeholder="Ce qui est constaté, ce qui sera fait, le délai"></textarea><label class="btn" style="cursor:pointer">Photos du problème<input type="file" id="pdph" accept="image/*" multiple hidden></label>
+          <div style="display:flex;gap:8px"><button class="primary" id="pds">Envoyer pour accord</button><button class="btn ghost" id="pdx">Annuler</button></div></div>
+        ${F.devis.map(d => `<div class="pf-d"><div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap"><b>${esc(d.titre)}</b><b>${czDH(d.montant)}</b></div>
+          <div class="hint">${esc(d.logement || "")}${d.prestataire ? " · " + esc(d.prestataire) : ""} · envoyé le ${esc(czD(d.created_at))}${d.decide_at ? " · réponse le " + esc(czD(d.decide_at)) : ""}</div>
+          ${d.reponse ? `<div class="hint">« ${esc(d.reponse)} »</div>` : ""}<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:4px">${czPfSt(d)}
+          ${g && (d.statut === "envoye" || d.paiement === "a_regler") ? `<button class="btn ghost" data-pdr="${d.id}">Relancer</button>` : ""}${g && d.paiement === "a_regler" ? `<button class="btn" data-pdok="${d.id}">Marquer réglé</button>` : ""}</div></div>`).join("") || `<div class="muted">Aucun devis.</div>`}</div>
+      <div class="card" style="display:grid;gap:10px"><div style="display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap"><h3 style="margin:0">Rapports envoyés</h3>
+        ${g ? `<div style="display:flex;gap:6px;align-items:center"><input type="month" id="prm" value="${CZ.pfM || czIso(new Date(new Date().getFullYear(), new Date().getMonth(), 0)).slice(0, 7)}"><button class="btn" id="pra">Préparer le rapport</button></div>` : ""}</div>
+        ${F.rapports.map(r => `<div style="display:flex;justify-content:space-between;gap:8px;border-top:1px solid var(--line);padding-top:6px"><span>${esc(r.titre)}<div class="hint">${r.type === "visite" ? "Rapport de visite" : "Rapport de période"} · ${esc(czD(r.created_at))} · ${esc(r.par)}</div></span>${r.lu_at ? `<span class="pill p-ok">Lu</span>` : `<span class="pill">Pas encore lu</span>`}</div>`).join("") || `<div class="muted">Aucun rapport envoyé.</div>`}</div></div></div>
+    ${apercu}`;
+}
+function czBPf(){
+  const F = CZ.pf, id = F.proprietaire.id, fil = $("#pffil"); if (fil) fil.scrollTop = fil.scrollHeight;
+  $("#pfback").onclick = () => { CZ.pfId = null; CZ.pf = null; CZ.pfRap = null; czRe(); };
+  if ($("#pff")) $("#pff").onchange = () => $("#pffn").textContent = $("#pff").files.length ? $("#pff").files.length + " photo(s)" : "";
+  if ($("#pfs")) $("#pfs").onclick = async () => { const fd = new FormData(); fd.append("id", id); fd.append("texte", $("#pfm").value); fd.append("logement_id", $("#pfl").value);
+    for (const f of $("#pff").files) fd.append("photos[]", await shrink(f), "photo.jpg");
+    try { const r = await czapi("prop_message", fd); czRe(); setTimeout(() => czNotif(r, "Message envoyé"), 400); } catch(e) { toast(e.message); } };
+  if ($("#pdn")) $("#pdn").onclick = () => { $("#pdf").hidden = false; $("#pdt").focus(); };
+  if ($("#pdx")) $("#pdx").onclick = () => $("#pdf").hidden = true;
+  if ($("#pds")) $("#pds").onclick = async () => { const fd = new FormData(); fd.append("id", id); fd.append("logement_id", $("#pdl").value); fd.append("titre", $("#pdt").value); fd.append("montant", $("#pdm").value); fd.append("prestataire", $("#pdp").value); fd.append("description", $("#pdd").value);
+    for (const f of $("#pdph").files) fd.append("photos[]", await shrink(f), "photo.jpg");
+    try { const r = await czapi("prop_devis_save", fd); czRe(); setTimeout(() => czNotif(r, "Devis envoyé pour accord"), 400); } catch(e) { toast(e.message); } };
+  document.querySelectorAll("[data-pdr]").forEach(b => b.onclick = async () => { try { czNotif(await czapi("prop_devis_relancer", {id:+b.dataset.pdr}), "Rappel envoyé"); } catch(e) { toast(e.message); } });
+  document.querySelectorAll("[data-pdok]").forEach(b => b.onclick = async () => { try { await czapi("prop_devis_regle", {id:+b.dataset.pdok}); toast("Devis marqué réglé."); czRe(); } catch(e) { toast(e.message); } });
+  if ($("#pra")) $("#pra").onclick = async () => { const v = $("#prm").value; if (!v) return; CZ.pfM = v; const [y, m] = v.split("-").map(Number), from = v + "-01", to = czIso(new Date(y, m, 0));
+    try { CZ.pfRap = {from, to, c:await czapi("prop_rapport_apercu", null, `id=${id}&from=${from}&to=${to}`)}; czRe(); } catch(e) { toast(e.message); } };
+  if ($("#prx")) $("#prx").onclick = () => { CZ.pfRap = null; czRe(); };
+  if ($("#prgo")) $("#prgo").onclick = async () => { const R = CZ.pfRap;
+    try { const r = await czapi("prop_rapport_envoyer", {id, type:"mensuel", from:R.from, to:R.to, note:$("#prn").value, sans_photos:!$("#prp").checked}); CZ.pfRap = null; czRe(); setTimeout(() => czNotif(r, "Rapport envoyé"), 400); } catch(e) { toast(e.message); } };
 }

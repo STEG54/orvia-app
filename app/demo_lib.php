@@ -141,7 +141,7 @@ function demo_seed(): void {
   // Keylia : une conciergerie marocaine, sans les données de l'ancien métier (animation commerciale en France : magasins, paie, DPAE…).
   // Les tests de non-régression de ce moteur gardent le jeu complet (DEMO_JEU_COMPLET dans config.php de la CI).
   if (!defined('DEMO_JEU_COMPLET')) {
-    foreach (['adresse' => "Rue de la Liberté, Gueliz\n40000 Marrakech", 'telephone' => '+212 5 24 00 00 00', 'siret' => '', 'iban' => '', 'bic' => '', 'ct_lieu' => 'Marrakech', 'ct_urssaf' => '', 'ct_caisse' => '', 'ct_retraite' => '',
+    foreach (['adresse' => "Rue de la Liberté, Gueliz\n40000 Marrakech", 'telephone' => '+212 5 24 00 00 00', 'siret' => '', 'banque' => 'Banque de démonstration', 'iban' => '000 000 0000000000000000 00 (fictif)', 'bic' => '', 'ct_lieu' => 'Marrakech', 'ct_urssaf' => '', 'ct_caisse' => '', 'ct_retraite' => '',
       'ct_convention' => '', 'hot_convention' => ''] as $k => $v) $set->execute([$k, $v]);
     require_once __DIR__ . '/demo_conciergerie.php'; cz_demo_seed(); unset($_SESSION['admin_nom']); return;
   }
@@ -427,7 +427,7 @@ function demo_entrer(string $role): string {
     $_SESSION['anim'] = $id ?: (int)$pdo->query("SELECT id FROM animatrices WHERE statut = 'actif' ORDER BY id LIMIT 1")->fetchColumn(); return 'index.php'; }
   if ($role === 'proprietaire') {
     require_once __DIR__ . '/conciergerie_lib.php'; $t = cz_jeton(); $pid = (int)$pdo->query("SELECT id FROM c_proprietaires ORDER BY id LIMIT 1")->fetchColumn();
-    $pdo->prepare("UPDATE c_proprietaires SET jeton_hash = ? WHERE id = ?")->execute([cz_hash($t), $pid]); return 'proprietaire.php#' . $t; }
+    $pdo->prepare("UPDATE c_proprietaires SET jeton_hash = ?, jeton_enc = ? WHERE id = ?")->execute([cz_hash($t), cz_enc($t), $pid]); return 'proprietaire.php#' . $t; }
   if ($role === 'marque') { $_SESSION['client_id'] = (int)$pdo->query("SELECT id FROM comptes_clients ORDER BY id LIMIT 1")->fetchColumn(); return 'marques.php'; }
   $a = $pdo->query("SELECT * FROM admins WHERE email = " . $pdo->quote(DEMO_DIRIGEANT['email']))->fetch(); tf_schema();
   admin_ouvrir($a, ['tout']); return 'admin.php';

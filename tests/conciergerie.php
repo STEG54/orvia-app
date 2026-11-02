@@ -174,4 +174,26 @@ $ph = $V['missions'][0]['photos'][0] ?? ''; t('photos de l\'intervention par lie
 $r = c('prop_valider', ['t' => $pt, 'id' => $inc['id'] ?? 0, 'decision' => 'ok']); t('dépense acceptée par le propriétaire', ($r['json']['ok'] ?? false) === true, $r['body']);
 t('lien propriétaire inventé refusé', c('prop_vue', ['t' => str_repeat('b', 48)])['code'] === 404);
 
+echo "Relation avec le propriétaire\n";
+$r = http('conciergerie_api.php?action=prop_message', ['id' => $pid, 'texte' => 'Bonjour, tout est prêt pour le séjour.', 'photos[]' => jpeg()], true); t('message de la conciergerie avec photo', ($r['json']['ok'] ?? false) === true, $r['body']);
+$r = c('prop_vue', ['t' => $pt]); $last = end($r['json']['messages']) ?: []; t('le propriétaire lit le message et sa photo', ($last['texte'] ?? '') === 'Bonjour, tout est prêt pour le séjour.' && count($last['photos'] ?? []) === 1 && ($r['json']['non_lus'] ?? 0) === 1, substr($r['body'], 0, 300));
+$r = http('conciergerie_api.php?action=prop_ecrire', ['t' => $pt, 'texte' => 'Merci beaucoup.'], true); t('le propriétaire répond', ($r['json']['ok'] ?? false) === true, $r['body']);
+$r = c('aujourdhui'); t('réponse du propriétaire signalée sur « Aujourd\'hui »', count(array_filter($r['json']['prop_messages'] ?? [], fn($m) => $m['texte'] === 'Merci beaucoup.')) === 1);
+$r = c('prop_fiche', null, "id=$pid"); $F = $r['json'] ?? []; t('fil complet dans la fiche du propriétaire', count($F['messages'] ?? []) === 2 && end($F['messages'])['auteur'] === 'proprietaire', substr($r['body'], 0, 200));
+t('message lu une fois la fiche ouverte', count(array_filter(c('aujourdhui')['json']['prop_messages'] ?? [], fn($m) => $m['texte'] === 'Merci beaucoup.')) === 0);
+$r = http('conciergerie_api.php?action=prop_devis_save', ['id' => $pid, 'logement_id' => $lid, 'titre' => 'Remplacement du chauffe-eau', 'montant' => '1800', 'prestataire' => 'Plomberie Test'], true); $did = (int)($r['json']['id'] ?? 0); t('devis envoyé pour accord', $did > 0, $r['body']);
+t('devis à zéro refusé', http('conciergerie_api.php?action=prop_devis_save', ['id' => $pid, 'titre' => 'Rien', 'montant' => '0'], true)['code'] === 400);
+t('pas de règlement avant accord', c('prop_devis_regle', ['id' => $did])['code'] === 404);
+$r = c('prop_devis_decider', ['t' => $pt, 'id' => $did, 'decision' => 'ok', 'reponse' => 'Allez-y.']); t('devis accepté par le propriétaire', ($r['json']['ok'] ?? false) === true, $r['body']);
+t('un devis ne se décide qu\'une fois', c('prop_devis_decider', ['t' => $pt, 'id' => $did, 'decision' => 'refus'])['code'] === 404);
+$r = c('prop_devis_regle', ['id' => $did]); $d = array_values(array_filter(c('prop_fiche', null, "id=$pid")['json']['devis'] ?? [], fn($x) => (int)$x['id'] === $did));
+t('devis marqué réglé', ($r['json']['ok'] ?? false) && ($d[0]['paiement'] ?? '') === 'regle', json_encode($d));
+$r = c('prop_rapport_envoyer', ['id' => $pid, 'type' => 'mensuel', 'from' => date('Y-m-01'), 'to' => date('Y-m-t'), 'note' => 'Bon mois.']); $rid = (int)($r['json']['id'] ?? 0); t('rapport de période envoyé', $rid > 0, $r['body']);
+$r = c('prop_rapport', ['t' => $pt, 'id' => $rid]); t('le propriétaire lit son rapport', ($r['json']['rapport']['note'] ?? '') === 'Bon mois.' && isset($r['json']['rapport']['contenu']['total']['nuits']), substr($r['body'], 0, 300));
+t('rapport d\'un autre propriétaire refusé', c('prop_rapport', ['t' => $pt, 'id' => $rid + 999])['code'] === 404);
+$V = c('prop_vue', ['t' => $pt])['json'] ?? []; $edl = array_values(array_filter($V['reservations'] ?? [], fn($x) => !empty($x['edl_sortie'])));
+$r = $edl ? c('prop_mission', ['t' => $pt, 'id' => $edl[0]['edl_sortie']]) : ['code' => 0, 'body' => 'aucun état des lieux']; t('état des lieux de sortie en photos', $r['code'] === 200 && count($r['json']['mission']['pieces'] ?? []) === 2, substr($r['body'], 0, 200));
+$r = c('prop_rapport_envoyer', ['id' => $pid, 'type' => 'visite', 'mission_id' => $edl[0]['edl_sortie'] ?? 0, 'note' => 'RAS']); t('rapport de visite depuis une intervention', ($r['json']['id'] ?? 0) > 0, $r['body']);
+t('taxe de séjour du trimestre dans l\'espace propriétaire', count($V['taxe'] ?? []) === 2, json_encode($V['taxe'] ?? null));
+
 echo "\n$ok réussis, $ko en échec\n"; exit($ko ? 1 : 0);

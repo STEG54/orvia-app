@@ -669,3 +669,53 @@ function cz_taxe_sejour(string $from, string $to): array {
   return ['from' => $from, 'to' => $to, 'reglages' => $R, 'communes' => array_values($communes), 'lignes' => $lignes, 'sans_tarif' => $manque,
     'total' => ['a_reverser' => round(array_sum(array_column($communes, 'a_reverser')), 2), 'plateforme' => round(array_sum(array_column($communes, 'plateforme')), 2), 'nuitees' => array_sum(array_column($communes, 'nuitees'))]];
 }
+
+/* ---------- Relation avec les propriétaires : lien, messages, rapports ---------- */
+/** Lien personnel du propriétaire (créé au besoin) : il part dans chaque e-mail ou message WhatsApp de la conciergerie. */
+function cz_prop_lien(int $pid, bool $nouveau = false): string {
+  $st = db()->prepare("SELECT jeton_hash, jeton_enc FROM c_proprietaires WHERE id = ?"); $st->execute([$pid]); $p = $st->fetch() ?: throw new RuntimeException('Propriétaire introuvable.');
+  $t = $nouveau || !$p['jeton_hash'] ? '' : cz_dec($p['jeton_enc']);
+  if ($t === '' || cz_hash($t) !== $p['jeton_hash']) { $t = cz_jeton(); db()->prepare("UPDATE c_proprietaires SET jeton_hash = ?, jeton_enc = ? WHERE id = ?")->execute([cz_hash($t), cz_enc($t), $pid]); }
+  return cz_base_url() . '/proprietaire.php#' . $t;
+}
+/** Prévient le propriétaire : e-mail s'il en a un, et lien WhatsApp prêt à envoyer par la conciergerie. */
+function cz_prop_notifier(int $pid, string $sujet, string $texte): array {
+  $st = db()->prepare("SELECT nom, email, telephone FROM c_proprietaires WHERE id = ?"); $st->execute([$pid]); $p = $st->fetch(); if (!$p) return ['mail' => false, 'wa' => ''];
+  $url = cz_prop_lien($pid); $mail = false;
+  if ($p['email'] !== '') {
+    $html = '<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.6;color:#2C2F34;max-width:560px"><div style="background:#43515C;color:#EAE6DA;padding:18px 22px;font-size:13px;letter-spacing:.12em;text-transform:uppercase">' . h(AG_NOM) . '</div>'
+      . '<div style="background:#ffffff;padding:22px;border:1px solid #E6E1D6"><p>Bonjour ' . h($p['nom']) . ',</p><p>' . nl2br(h($texte)) . '</p>'
+      . '<p><a href="' . h($url) . '" style="display:inline-block;background:#43515C;color:#ffffff;padding:12px 20px;text-decoration:none">Ouvrir mon espace propriétaire</a></p>'
+      . '<p style="color:#626A70;font-size:13px">Ce lien est personnel : il ouvre votre espace sans mot de passe. Ne le transférez pas.</p></div></div>';
+    try { require_once __DIR__ . '/report_lib.php'; $mail = mail_send($p['email'], $sujet, $html); } catch (Throwable $e) { error_log('Keylia e-mail propriétaire : ' . $e->getMessage()); }
+  }
+  return ['mail' => $mail, 'email' => $p['email'], 'wa' => $p['telephone'] !== '' ? cz_wa_lien($p['telephone'], "Bonjour " . $p['nom'] . ",\n" . $texte . "\n\nVotre espace propriétaire : " . $url) : ''];
+}
+function cz_prop_photos_enregistrer(array $fichiers): array {
+  $out = []; foreach ($fichiers as $f) { if (($f['error'] ?? 1) !== UPLOAD_ERR_OK || count($out) >= 8) continue; $out[] = save_image($f['tmp_name'])['fichier']; } return $out;
+}
+/** Liste des $_FILES['photos'][] remise à plat. */
+function cz_fichiers(string $cle): array {
+  $F = $_FILES[$cle] ?? null; if (!$F) return []; if (!is_array($F['name'])) return [$F]; $o = [];
+  foreach ($F['name'] as $i => $_) $o[] = ['name' => $F['name'][$i], 'tmp_name' => $F['tmp_name'][$i], 'error' => $F['error'][$i], 'size' => $F['size'][$i]]; return $o;
+}
+/** Contenu d'un rapport au propriétaire sur une période, figé à l'envoi : séjours et occupation, ménages, notes des voyageurs, signalements et dépenses, taxe de séjour, photos. */
+function cz_prop_rapport_contenu(int $pid, string $from, string $to, int $nbPhotos = 12): array {
+  $L = array_values(array_filter(cz_rapport_logements($from, $to), fn($l) => (int)$l['proprietaire_id'] === $pid));
+  $ids = array_map(fn($l) => (int)$l['id'], $L) ?: [0]; $in_ = implode(',', $ids);
+  $lignes = array_map(fn($l) => array_intersect_key($l, array_flip(['id', 'nom', 'ville', 'nuits', 'sejours', 'voyageurs', 'occupation', 'menages', 'menages_faits', 'proprete', 'note_sejour', 'avis', 'incidents', 'depenses'])), $L);
+  $T = cz_taxe_sejour($from, $to); $noms = array_column($L, 'nom');
+  $taxe = array_values(array_filter($T['lignes'], fn($x) => in_array($x['logement'], $noms, true)));
+  $st = db()->prepare("SELECT l.nom logement, a.commentaire, a.created_at FROM c_avis a JOIN c_logements l ON l.id = a.logement_id WHERE a.logement_id IN ($in_) AND a.commentaire <> '' AND DATE(a.created_at) BETWEEN ? AND ? ORDER BY a.created_at DESC LIMIT 8"); $st->execute([$from, $to]);
+  $avis = $st->fetchAll();
+  $st = db()->prepare("SELECT l.nom logement, i.description, i.cout, i.statut, i.proprio_statut, i.created_at FROM c_incidents i JOIN c_logements l ON l.id = i.logement_id WHERE i.logement_id IN ($in_) AND DATE(i.created_at) BETWEEN ? AND ? ORDER BY i.created_at"); $st->execute([$from, $to]);
+  $inc = $st->fetchAll();
+  // Photos : la dernière intervention faite de chaque logement sur la période, une photo par pièce.
+  $ph = []; $st = db()->prepare("SELECT m.etat, l.nom FROM c_missions m JOIN c_logements l ON l.id = m.logement_id WHERE m.logement_id = ? AND m.statut = 'faite' AND m.date BETWEEN ? AND ? ORDER BY m.date DESC LIMIT 1");
+  foreach ($ids as $i) { $st->execute([$i, $from, $to]); if ($m = $st->fetch()) foreach (json_decode((string)$m['etat'], true) ?: [] as $e) if (!empty($e['photos'][0])) $ph[] = $e['photos'][0]; }
+  $tot = ['nuits' => array_sum(array_column($lignes, 'nuits')), 'sejours' => array_sum(array_column($lignes, 'sejours')), 'menages_faits' => array_sum(array_column($lignes, 'menages_faits')), 'depenses' => round(array_sum(array_column($lignes, 'depenses')), 2)];
+  return ['logements' => $lignes, 'total' => $tot, 'avis' => $avis, 'incidents' => $inc, 'photos' => array_slice($ph, 0, $nbPhotos),
+    'taxe' => ['montant' => round(array_sum(array_column(array_filter($taxe, fn($x) => !$x['plateforme']), 'montant')), 2), 'nuitees' => array_sum(array_column($taxe, 'nuitees')), 'sans_tarif' => $T['sans_tarif']]];
+}
+/** Un réglage de la société (raison sociale, banque, RIB…) lu sans charger le module de gestion. */
+function g_reglage_val(string $k): string { try { $st = db()->prepare("SELECT valeur FROM g_reglages WHERE cle = ?"); $st->execute([$k]); return trim((string)$st->fetchColumn()); } catch (Throwable $e) { return ''; } }

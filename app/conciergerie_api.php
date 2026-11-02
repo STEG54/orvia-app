@@ -102,7 +102,8 @@ try {
       $st->execute([$j, $j]);
       $inc = db()->query("SELECT i.id, i.description, i.bloquant, i.created_at, l.nom logement FROM c_incidents i JOIN c_logements l ON l.id = i.logement_id WHERE i.statut = 'ouvert' ORDER BY i.bloquant DESC, i.created_at DESC LIMIT 30")->fetchAll();
       $Q = db()->query("SELECT m.reservation_id, m.texte, m.created_at, l.nom logement FROM c_messages m JOIN c_reservations r ON r.id = m.reservation_id JOIN c_logements l ON l.id = r.logement_id WHERE m.a_traiter = 1 ORDER BY m.id DESC LIMIT 30")->fetchAll();
-      c_out(['arrivees' => $arr, 'missions' => $st->fetchAll(), 'incidents' => $inc, 'questions' => $Q, 'demarrage' => cz_demarrage()]);
+      $PM = db()->query("SELECT m.proprietaire_id, p.nom, m.texte, m.created_at FROM c_prop_messages m JOIN c_proprietaires p ON p.id = m.proprietaire_id WHERE m.auteur = 'proprietaire' AND m.lu_at IS NULL ORDER BY m.id DESC LIMIT 20")->fetchAll();
+      c_out(['arrivees' => $arr, 'missions' => $st->fetchAll(), 'incidents' => $inc, 'questions' => $Q, 'prop_messages' => $PM, 'demarrage' => cz_demarrage()]);
 
     case 'demarrage_masquer':
       c_admin('tout'); reglage_set('cz_demarrage_masque', empty($in['afficher']) ? '1' : '0'); c_out(['ok' => true]);
@@ -208,7 +209,7 @@ try {
     case 'mission_get':
       c_admin(); $m = cz_mission((int)($_GET['id'] ?? 0)) ?: c_fail('Mission introuvable.', 404); $etat = cz_etat($m); $P = [];
       foreach (cz_checklist($m) as $i => $p) $P[] = $p + ['ok' => !empty($etat[$i]['ok']), 'urls' => array_map(fn($f) => photo_url($f, true), (array)($etat[$i]['photos'] ?? [])), 'grandes' => array_map(fn($f) => photo_url($f), (array)($etat[$i]['photos'] ?? []))];
-      c_out(['mission' => ['id' => (int)$m['id'], 'logement' => $m['logement'], 'type' => $m['type'], 'date' => $m['date'], 'heure' => $m['heure'], 'statut' => $m['statut'], 'agent' => $m['agent'], 'animatrice_id' => $m['animatrice_id'] ? (int)$m['animatrice_id'] : null,
+      c_out(['mission' => ['id' => (int)$m['id'], 'logement' => $m['logement'], 'logement_id' => (int)$m['logement_id'], 'type' => $m['type'], 'date' => $m['date'], 'heure' => $m['heure'], 'statut' => $m['statut'], 'agent' => $m['agent'], 'animatrice_id' => $m['animatrice_id'] ? (int)$m['animatrice_id'] : null,
         'note' => $m['note'], 'debut' => $m['debut_at'], 'fin' => $m['fin_at'], 'pieces' => $P, 'manques' => cz_mission_manques($m),
         'debut_pos' => $m['debut_at'] ? cz_position_texte($m['debut_dist'] === null ? null : (int)$m['debut_dist']) : '', 'fin_pos' => $m['fin_at'] ? cz_position_texte($m['fin_dist'] === null ? null : (int)$m['fin_dist']) : '',
         'loin' => ($m['debut_dist'] !== null && (int)$m['debut_dist'] > 150) || ($m['fin_dist'] !== null && (int)$m['fin_dist'] > 150),
@@ -235,6 +236,70 @@ try {
         ->execute([empty($in['bloquant']) ? 0 : 1, $cout, ($in['statut'] ?? '') === 'clos' ? 'clos' : 'ouvert', ($in['statut'] ?? '') === 'clos' ? 'clos' : '', now(), empty($in['valider_proprio']) ? 0 : 1, $id]);
       c_out(['ok' => true]);
 
+    case 'prop_fiche':
+      // Fiche d'un propriétaire : ses logements, le fil de messages (ses messages deviennent lus), les rapports envoyés.
+      c_admin(); $id = (int)($_GET['id'] ?? 0);
+      $st = db()->prepare("SELECT id, nom, email, telephone, plafond, actif, (jeton_hash IS NOT NULL) lien FROM c_proprietaires WHERE id = ?"); $st->execute([$id]); $p = $st->fetch() ?: c_fail('Propriétaire introuvable.', 404);
+      $st = db()->prepare("SELECT id, nom, ville FROM c_logements WHERE proprietaire_id = ? AND actif = 1 ORDER BY nom"); $st->execute([$id]); $L = $st->fetchAll();
+      $st = db()->prepare("SELECT id, logement_id, auteur, nom, texte, photos, lu_at, created_at FROM c_prop_messages WHERE proprietaire_id = ? ORDER BY id DESC LIMIT 100"); $st->execute([$id]);
+      $M = array_reverse(array_map(fn($m) => array_merge($m, ['photos' => array_map(fn($f) => ['mini' => photo_url($f, true), 'url' => photo_url($f)], json_decode((string)$m['photos'], true) ?: [])]), $st->fetchAll()));
+      db()->prepare("UPDATE c_prop_messages SET lu_at = ? WHERE proprietaire_id = ? AND auteur = 'proprietaire' AND lu_at IS NULL")->execute([now(), $id]);
+      $st = db()->prepare("SELECT id, type, titre, periode_from, periode_to, par, lu_at, created_at FROM c_prop_rapports WHERE proprietaire_id = ? ORDER BY id DESC LIMIT 50"); $st->execute([$id]);
+      $R = $st->fetchAll(); $st = db()->prepare("SELECT d.*, l.nom logement FROM c_prop_devis d LEFT JOIN c_logements l ON l.id = d.logement_id WHERE d.proprietaire_id = ? ORDER BY d.id DESC LIMIT 50"); $st->execute([$id]);
+      $D = array_map(fn($d) => array_merge($d, ['photos' => array_map(fn($f) => ['mini' => photo_url($f, true), 'url' => photo_url($f)], json_decode((string)$d['photos'], true) ?: [])]), $st->fetchAll());
+      c_out(['proprietaire' => $p, 'logements' => $L, 'messages' => $M, 'rapports' => $R, 'devis' => $D]);
+
+    case 'prop_message':
+      c_admin('tout'); $id = (int)($in['id'] ?? 0); $txt = trim(clip($in['texte'] ?? '', 4000));
+      $st = db()->prepare("SELECT id FROM c_proprietaires WHERE id = ? AND actif = 1"); $st->execute([$id]); $st->fetchColumn() ?: c_fail('Propriétaire introuvable.', 404);
+      $ph = cz_prop_photos_enregistrer(cz_fichiers('photos')); if ($txt === '' && !$ph) c_fail('Écrivez un message ou ajoutez une photo.');
+      $lid = (int)($in['logement_id'] ?? 0) ?: null;
+      db()->prepare("INSERT INTO c_prop_messages (proprietaire_id, logement_id, auteur, nom, texte, photos, created_at) VALUES (?,?,'conciergerie',?,?,?,?)")->execute([$id, $lid, admin_nom(), $txt, $ph ? json_encode($ph) : null, now()]);
+      $n = cz_prop_notifier($id, 'Nouveau message de ' . AG_NOM, 'Vous avez un nouveau message de ' . AG_NOM . ($ph ? ', avec ' . count($ph) . ' photo' . (count($ph) > 1 ? 's' : '') : '') . '.');
+      c_out(['ok' => true] + $n);
+
+    case 'prop_rapport_apercu':
+      c_admin(); c_out(cz_prop_rapport_contenu((int)($_GET['id'] ?? 0), c_date($_GET['from'] ?? ''), c_date($_GET['to'] ?? '')));
+
+    case 'prop_rapport_envoyer':
+      // Rapport figé à l'envoi : le propriétaire relit toujours ce qui lui a été envoyé, même si les données bougent ensuite.
+      c_admin('tout'); $id = (int)($in['id'] ?? 0); $note = trim(clip($in['note'] ?? '', 4000));
+      $st = db()->prepare("SELECT id FROM c_proprietaires WHERE id = ? AND actif = 1"); $st->execute([$id]); $st->fetchColumn() ?: c_fail('Propriétaire introuvable.', 404);
+      if (($in['type'] ?? '') === 'visite') {
+        $m = cz_mission((int)($in['mission_id'] ?? 0)) ?: c_fail('Intervention introuvable.', 404);
+        $st = db()->prepare("SELECT proprietaire_id FROM c_logements WHERE id = ?"); $st->execute([$m['logement_id']]); if ((int)$st->fetchColumn() !== $id) c_fail('Ce logement n\'appartient pas à ce propriétaire.');
+        $pieces = []; $etat = cz_etat($m); foreach (cz_checklist($m) as $i => $pc) $pieces[] = ['piece' => $pc['piece'], 'ok' => !empty($etat[$i]['ok']), 'photos' => (array)($etat[$i]['photos'] ?? [])];
+        $type = 'visite'; $titre = (CZ_MISSION_TYPES[$m['type']] ?? 'Intervention') . ' · ' . $m['logement'] . ' · ' . date('d/m/Y', strtotime($m['date'])); $from = $to = $m['date'];
+        $contenu = ['logement' => $m['logement'], 'type' => $m['type'], 'date' => $m['date'], 'debut' => $m['debut_at'] ?? null, 'fin' => $m['fin_at'] ?? null, 'pieces' => $pieces]; $mid = (int)$m['id'];
+      } else {
+        $from = c_date($in['from'] ?? ''); $to = c_date($in['to'] ?? ''); if ($from > $to) c_fail('Période invalide.');
+        $type = 'mensuel'; $mid = null; $contenu = cz_prop_rapport_contenu($id, $from, $to, empty($in['sans_photos']) ? 12 : 0);
+        $titre = 'Rapport du ' . date('d/m/Y', strtotime($from)) . ' au ' . date('d/m/Y', strtotime($to));
+      }
+      db()->prepare("INSERT INTO c_prop_rapports (proprietaire_id, type, titre, periode_from, periode_to, mission_id, note, contenu, par, created_at) VALUES (?,?,?,?,?,?,?,?,?,?)")
+        ->execute([$id, $type, $titre, $from, $to, $mid, $note, json_encode($contenu, JSON_UNESCAPED_UNICODE), admin_nom(), now()]);
+      $rid = (int)db()->lastInsertId(); journal('rapport propriétaire', 'propriétaire ' . $id . ' rapport ' . $rid);
+      c_out(['ok' => true, 'id' => $rid] + cz_prop_notifier($id, $titre, AG_NOM . ' vous a envoyé un rapport : ' . $titre . '.'));
+
+    case 'prop_devis_save':
+      c_admin('tout'); $id = (int)($in['id'] ?? 0); $titre = trim(clip($in['titre'] ?? '', 200)); $mt = (float)(montant($in['montant'] ?? 0) ?? 0);
+      $st = db()->prepare("SELECT id FROM c_proprietaires WHERE id = ? AND actif = 1"); $st->execute([$id]); $st->fetchColumn() ?: c_fail('Propriétaire introuvable.', 404);
+      if ($titre === '' || $mt <= 0) c_fail('Indiquez l\'objet des travaux et le montant.');
+      $lid = (int)($in['logement_id'] ?? 0) ?: null; $ph = cz_prop_photos_enregistrer(cz_fichiers('photos'));
+      db()->prepare("INSERT INTO c_prop_devis (proprietaire_id, logement_id, titre, description, montant, prestataire, photos, par, created_at) VALUES (?,?,?,?,?,?,?,?,?)")
+        ->execute([$id, $lid, $titre, trim(clip($in['description'] ?? '', 4000)), $mt, clip($in['prestataire'] ?? '', 160), $ph ? json_encode($ph) : null, admin_nom(), now()]);
+      $did = (int)db()->lastInsertId(); journal('devis propriétaire', 'devis ' . $did);
+      c_out(['ok' => true, 'id' => $did] + cz_prop_notifier($id, 'Devis à valider : ' . $titre, 'Un devis attend votre accord avant travaux : ' . $titre . ', ' . number_format($mt, 2, ',', ' ') . ' DH.'));
+
+    case 'prop_devis_regle':
+      c_admin('tout'); $st = db()->prepare("SELECT * FROM c_prop_devis WHERE id = ? AND statut = 'accepte'"); $st->execute([(int)($in['id'] ?? 0)]); $d = $st->fetch() ?: c_fail('Devis introuvable ou pas encore accepté.', 404);
+      db()->prepare("UPDATE c_prop_devis SET paiement = 'regle', regle_at = ? WHERE id = ?")->execute([now(), $d['id']]); journal('devis réglé', 'devis ' . $d['id']); c_out(['ok' => true]);
+
+    case 'prop_devis_relancer':
+      c_admin('tout'); $st = db()->prepare("SELECT * FROM c_prop_devis WHERE id = ?"); $st->execute([(int)($in['id'] ?? 0)]); $d = $st->fetch() ?: c_fail('Devis introuvable.', 404);
+      $txt = $d['statut'] === 'envoye' ? 'Pour rappel, un devis attend votre accord : ' . $d['titre'] . '.' : 'Pour rappel, le règlement des travaux « ' . $d['titre'] . ' » (' . number_format((float)$d['montant'], 2, ',', ' ') . ' DH) reste à effectuer.';
+      c_out(['ok' => true] + cz_prop_notifier((int)$d['proprietaire_id'], 'Rappel : ' . $d['titre'], $txt));
+
     case 'proprietaire_save':
       c_admin('tout'); $id = (int)($in['id'] ?? 0); $nom = clip($in['nom'] ?? '', 160); if ($nom === '') c_fail('Le nom du propriétaire est obligatoire.');
       $em = clip($in['email'] ?? '', 160); if ($em !== '' && !filter_var($em, FILTER_VALIDATE_EMAIL)) c_fail('Adresse e-mail invalide.');
@@ -245,10 +310,8 @@ try {
 
     case 'proprietaire_lien':
       // Nouveau lien personnel : l'ancien cesse de fonctionner. Affiché une seule fois.
-      c_admin('tout'); $id = (int)($in['id'] ?? 0); $t = cz_jeton();
-      db()->prepare("UPDATE c_proprietaires SET jeton_hash = ? WHERE id = ?")->execute([cz_hash($t), $id]); journal('lien propriétaire', 'propriétaire ' . $id);
-      $base = preg_replace('#/[^/]*$#', '', cz_lien_voyageur(['lien_enc' => cz_enc('x')]));
-      c_out(['lien' => $base . '/proprietaire.php#' . $t]);
+      c_admin('tout'); $id = (int)($in['id'] ?? 0); $url = cz_prop_lien($id, true); journal('lien propriétaire', 'propriétaire ' . $id);
+      c_out(['lien' => $url]);
 
     case 'reglages_save':
       c_admin('tout'); if (!est_titulaire()) c_fail('Réservé aux dirigeant(e)s.', 403);
@@ -437,14 +500,63 @@ try {
       limite('prop', 60, 600); $p = cz_proprietaire_par_jeton((string)($in['t'] ?? '')) ?: c_fail('Ce lien n\'est plus valable. Demandez-en un nouveau à votre conciergerie.', 404);
       $st = db()->prepare("SELECT id, nom, ville FROM c_logements WHERE proprietaire_id = ? AND actif = 1 ORDER BY nom"); $st->execute([$p['id']]); $L = $st->fetchAll(); $ids = array_column($L, 'id') ?: [0];
       $in_ = implode(',', array_map('intval', $ids));
-      $R = db()->query("SELECT r.logement_id, r.arrivee, r.depart, r.source, r.nb_voyageurs nb FROM c_reservations r WHERE r.logement_id IN ($in_) AND r.statut = 'confirmee' AND r.depart >= CURDATE() - INTERVAL 60 DAY ORDER BY r.arrivee")->fetchAll();
+      $R = db()->query("SELECT r.id, r.logement_id, r.arrivee, r.depart, r.source, r.nb_voyageurs nb FROM c_reservations r WHERE r.logement_id IN ($in_) AND r.statut = 'confirmee' AND r.depart >= CURDATE() - INTERVAL 60 DAY ORDER BY r.arrivee")->fetchAll();
       $M = array_map(function ($m) { $ph = []; foreach (json_decode((string)$m['etat'], true) ?: [] as $e) foreach ((array)($e['photos'] ?? []) as $f) $ph[] = photo_lien($f, 7, true); unset($m['etat']); return $m + ['photos' => array_slice($ph, 0, 24)]; },
         db()->query("SELECT m.logement_id, m.type, m.date, m.fin_at, m.etat FROM c_missions m WHERE m.logement_id IN ($in_) AND m.statut = 'faite' AND m.date >= CURDATE() - INTERVAL 60 DAY ORDER BY m.date DESC")->fetchAll());
       $I = array_map(fn($i) => $i + ['photo_url' => $i['photo'] ? photo_lien($i['photo'], 7, true) : ''],
         db()->query("SELECT i.id, i.logement_id, i.description, i.photo, i.cout, i.statut, i.proprio_statut, i.created_at FROM c_incidents i WHERE i.logement_id IN ($in_) AND (i.statut = 'ouvert' OR i.created_at >= CURDATE() - INTERVAL 90 DAY) ORDER BY i.created_at DESC")->fetchAll());
       $A = db()->query("SELECT logement_id, ROUND(AVG(proprete), 1) proprete, ROUND(AVG(logement), 1) logement, ROUND(AVG(accueil), 1) accueil, COUNT(*) n FROM c_avis WHERE logement_id IN ($in_) AND created_at >= CURDATE() - INTERVAL 180 DAY GROUP BY logement_id")->fetchAll();
       $C = db()->query("SELECT logement_id, commentaire, created_at FROM c_avis WHERE logement_id IN ($in_) AND commentaire <> '' ORDER BY created_at DESC LIMIT 10")->fetchAll();
-      c_out(['proprietaire' => $p['nom'], 'agence' => AG_NOM, 'logements' => $L, 'reservations' => $R, 'missions' => $M, 'incidents' => $I, 'notes' => $A, 'commentaires' => $C]);
+      $st = db()->prepare("SELECT id, auteur, nom, texte, photos, created_at FROM c_prop_messages WHERE proprietaire_id = ? ORDER BY id DESC LIMIT 60"); $st->execute([$p['id']]);
+      $MS = array_reverse(array_map(fn($m) => array_merge($m, ['photos' => array_map(fn($f) => ['mini' => photo_lien($f, 7, true), 'url' => photo_lien($f, 7)], json_decode((string)$m['photos'], true) ?: [])]), $st->fetchAll()));
+      $nonlus = (int)db()->query("SELECT COUNT(*) FROM c_prop_messages WHERE proprietaire_id = " . (int)$p['id'] . " AND auteur = 'conciergerie' AND lu_at IS NULL")->fetchColumn();
+      db()->prepare("UPDATE c_prop_messages SET lu_at = ? WHERE proprietaire_id = ? AND auteur = 'conciergerie' AND lu_at IS NULL")->execute([now(), $p['id']]);
+      $st = db()->prepare("SELECT id, type, titre, created_at, lu_at FROM c_prop_rapports WHERE proprietaire_id = ? ORDER BY id DESC LIMIT 24"); $st->execute([$p['id']]); $RP = $st->fetchAll();
+      // Taxe de séjour : trimestre en cours et trimestre précédent, pour les logements du propriétaire (c'est lui qui la doit à la commune).
+      $q = (int)ceil(date('n') / 3); $debQ = date('Y-m-d', mktime(0, 0, 0, 3 * $q - 2, 1)); $TX = [];
+      foreach ([[date('Y-m-d', strtotime($debQ . ' -3 months')), date('Y-m-d', strtotime($debQ . ' -1 day'))], [$debQ, date('Y-m-d')]] as [$f, $t]) {
+        $T = cz_taxe_sejour($f, $t); $noms = array_column($L, 'nom'); $lg = array_values(array_filter($T['lignes'], fn($x) => in_array($x['logement'], $noms, true)));
+        $TX[] = ['from' => $f, 'to' => $t, 'nuitees' => array_sum(array_column($lg, 'nuitees')), 'montant' => round(array_sum(array_column(array_filter($lg, fn($x) => !$x['plateforme']), 'montant')), 2), 'sans_tarif' => (bool)$T['sans_tarif']]; }
+      $st = db()->prepare("SELECT d.id, d.logement_id, d.titre, d.description, d.montant, d.prestataire, d.photos, d.statut, d.reponse, d.decide_at, d.paiement, d.regle_at, d.created_at FROM c_prop_devis d WHERE d.proprietaire_id = ? ORDER BY d.id DESC LIMIT 30"); $st->execute([$p['id']]);
+      $DV = array_map(fn($d) => array_merge($d, ['photos' => array_map(fn($f) => ['mini' => photo_lien($f, 7, true), 'url' => photo_lien($f, 7)], json_decode((string)$d['photos'], true) ?: [])]), $st->fetchAll());
+      // État des lieux de chaque séjour : entrée = dernier ménage fait avant l'arrivée, sortie = ménage fait après le départ.
+      $ent = db()->prepare("SELECT id FROM c_missions WHERE logement_id = ? AND type = 'menage' AND statut = 'faite' AND date <= ? ORDER BY date DESC, id DESC LIMIT 1");
+      $sor = db()->prepare("SELECT id FROM c_missions WHERE reservation_id = ? AND type = 'menage' AND statut = 'faite' LIMIT 1");
+      foreach ($R as &$r) { $ent->execute([$r['logement_id'], $r['arrivee']]); $sor->execute([$r['id']]); $r['edl_entree'] = (int)$ent->fetchColumn() ?: null; $r['edl_sortie'] = (int)$sor->fetchColumn() ?: null; unset($r['id']); } unset($r);
+      $rib = ['banque' => g_reglage_val('banque'), 'rib' => g_reglage_val('iban'), 'societe' => g_reglage_val('societe') ?: AG_NOM];
+      c_out(['proprietaire' => $p['nom'], 'agence' => AG_NOM, 'logements' => $L, 'reservations' => $R, 'missions' => $M, 'incidents' => $I, 'notes' => $A, 'commentaires' => $C, 'messages' => $MS, 'non_lus' => $nonlus, 'rapports' => $RP, 'taxe' => $TX, 'devis' => $DV, 'reglement' => $rib]);
+
+    case 'prop_devis_decider':
+      limite('prop', 60, 600); $p = cz_proprietaire_par_jeton((string)($in['t'] ?? '')) ?: c_fail('Ce lien n\'est plus valable.', 404);
+      $st = db()->prepare("SELECT id, titre FROM c_prop_devis WHERE id = ? AND proprietaire_id = ? AND statut = 'envoye'"); $st->execute([(int)($in['id'] ?? 0), $p['id']]); $d = $st->fetch() ?: c_fail('Ce devis a déjà reçu une réponse.', 404);
+      $ok = ($in['decision'] ?? '') === 'ok';
+      db()->prepare("UPDATE c_prop_devis SET statut = ?, reponse = ?, decide_at = ?, paiement = ? WHERE id = ?")->execute([$ok ? 'accepte' : 'refuse', trim(clip($in['reponse'] ?? '', 2000)), now(), $ok ? 'a_regler' : '', $d['id']]);
+      db()->prepare("INSERT INTO c_prop_messages (proprietaire_id, auteur, nom, texte, created_at) VALUES (?,'proprietaire',?,?,?)")->execute([$p['id'], $p['nom'], ($ok ? 'Devis accepté : ' : 'Devis refusé : ') . $d['titre'] . (trim((string)($in['reponse'] ?? '')) !== '' ? "\n" . trim(clip($in['reponse'], 2000)) : ''), now()]);
+      journal($ok ? 'devis accepté' : 'devis refusé', 'devis ' . $d['id'], $p['nom'], 'propriétaire'); c_out(['ok' => true]);
+
+    case 'prop_mission':
+      // Une intervention d'un logement du propriétaire, pièce par pièce, avec ses photos (état des lieux d'entrée ou de sortie).
+      limite('prop', 60, 600); $p = cz_proprietaire_par_jeton((string)($in['t'] ?? '')) ?: c_fail('Ce lien n\'est plus valable.', 404);
+      $m = cz_mission((int)($in['id'] ?? 0)); $st = db()->prepare("SELECT proprietaire_id FROM c_logements WHERE id = ?"); $st->execute([$m['logement_id'] ?? 0]);
+      if (!$m || (int)$st->fetchColumn() !== (int)$p['id'] || $m['statut'] !== 'faite') c_fail('Intervention introuvable.', 404);
+      $etat = cz_etat($m); $P = []; foreach (cz_checklist($m) as $i => $pc) $P[] = ['piece' => $pc['piece'], 'ok' => !empty($etat[$i]['ok']), 'photos' => array_map(fn($f) => ['mini' => photo_lien($f, 7, true), 'url' => photo_lien($f, 7)], (array)($etat[$i]['photos'] ?? []))];
+      c_out(['mission' => ['logement' => $m['logement'], 'type' => $m['type'], 'date' => $m['date'], 'fin' => $m['fin_at'], 'pieces' => $P]]);
+
+    case 'prop_ecrire':
+      limite('prop_ecrire', 20, 3600); $p = cz_proprietaire_par_jeton((string)($in['t'] ?? '')) ?: c_fail('Ce lien n\'est plus valable.', 404);
+      $txt = trim(clip($in['texte'] ?? '', 3000)); $ph = array_slice(cz_prop_photos_enregistrer(cz_fichiers('photos')), 0, 4);
+      if ($txt === '' && !$ph) c_fail('Écrivez votre message.');
+      db()->prepare("INSERT INTO c_prop_messages (proprietaire_id, auteur, nom, texte, photos, created_at) VALUES (?,'proprietaire',?,?,?,?)")->execute([$p['id'], $p['nom'], $txt, $ph ? json_encode($ph) : null, now()]);
+      c_out(['ok' => true]);
+
+    case 'prop_rapport':
+      limite('prop', 60, 600); $p = cz_proprietaire_par_jeton((string)($in['t'] ?? '')) ?: c_fail('Ce lien n\'est plus valable.', 404);
+      $st = db()->prepare("SELECT * FROM c_prop_rapports WHERE id = ? AND proprietaire_id = ?"); $st->execute([(int)($in['id'] ?? 0), $p['id']]); $r = $st->fetch() ?: c_fail('Rapport introuvable.', 404);
+      if (!$r['lu_at']) db()->prepare("UPDATE c_prop_rapports SET lu_at = ? WHERE id = ?")->execute([now(), $r['id']]);
+      $c = json_decode((string)$r['contenu'], true) ?: []; $lien = fn($f) => ['mini' => photo_lien($f, 30, true), 'url' => photo_lien($f, 30)];
+      if (isset($c['photos'])) $c['photos'] = array_map($lien, $c['photos']);
+      if (isset($c['pieces'])) foreach ($c['pieces'] as &$pc) $pc['photos'] = array_map($lien, $pc['photos']); unset($pc);
+      c_out(['rapport' => ['id' => (int)$r['id'], 'type' => $r['type'], 'titre' => $r['titre'], 'from' => $r['periode_from'], 'to' => $r['periode_to'], 'note' => $r['note'], 'par' => $r['par'], 'created_at' => $r['created_at'], 'contenu' => $c], 'agence' => AG_NOM, 'proprietaire' => $p['nom']]);
 
     case 'prop_valider':
       limite('prop', 60, 600); $p = cz_proprietaire_par_jeton((string)($in['t'] ?? '')) ?: c_fail('Ce lien n\'est plus valable.', 404);

@@ -13,6 +13,7 @@ const MIGRATIONS = [
   5 => 'ORVIA : arrivée des voyageurs, tâches du gestionnaire, avis, lien de mission, position, services à l\'arrivée',
   6 => 'ORVIA : livret d\'arrivée (position fixée, repère, étapes en photos, Wi-Fi)',
   7 => 'ORVIA : questions des voyageurs et réponses de l\'assistant',
+  8 => 'Keylia : messages, rapports et devis échangés avec les propriétaires',
 ];
 
 function mig_derniere(): int { return (int)array_key_last(MIGRATIONS); }
@@ -118,4 +119,21 @@ function mig_7(PDO $pdo): void {
   $p = function_exists('demo_prefixe') ? demo_prefixe() : '';
   $pdo->exec("CREATE TABLE IF NOT EXISTS `{$p}c_messages` (id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY, reservation_id INT UNSIGNED NOT NULL, auteur VARCHAR(10) NOT NULL, texte TEXT NOT NULL,
     a_traiter TINYINT(1) NOT NULL DEFAULT 0, traite_at DATETIME DEFAULT NULL, created_at DATETIME NOT NULL, KEY reservation_id (reservation_id), KEY a_traiter (a_traiter)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+}
+
+function mig_8(PDO $pdo): void {
+  $p = function_exists('demo_prefixe') ? demo_prefixe() : ''; $E = 'ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci';
+  // Lien du propriétaire gardé chiffré : il part dans les e-mails et WhatsApp de la conciergerie à chaque message ou rapport.
+  $st = $pdo->prepare("SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = 'jeton_enc'"); $st->execute([$p . 'c_proprietaires']);
+  if (!(int)$st->fetchColumn()) $pdo->exec("ALTER TABLE `{$p}c_proprietaires` ADD COLUMN jeton_enc TEXT NULL");
+  $pdo->exec("CREATE TABLE IF NOT EXISTS `{$p}c_prop_messages` (id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY, proprietaire_id INT UNSIGNED NOT NULL, logement_id INT UNSIGNED DEFAULT NULL, auteur VARCHAR(12) NOT NULL,
+    nom VARCHAR(120) NOT NULL DEFAULT '', texte TEXT NOT NULL, photos TEXT NULL, lu_at DATETIME DEFAULT NULL, created_at DATETIME NOT NULL, KEY proprietaire_id (proprietaire_id), KEY lu_at (lu_at)) $E");
+  $pdo->exec("CREATE TABLE IF NOT EXISTS `{$p}c_prop_rapports` (id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY, proprietaire_id INT UNSIGNED NOT NULL, type VARCHAR(10) NOT NULL, titre VARCHAR(200) NOT NULL,
+    periode_from DATE DEFAULT NULL, periode_to DATE DEFAULT NULL, mission_id INT UNSIGNED DEFAULT NULL, note TEXT NULL, contenu MEDIUMTEXT NULL, photos TEXT NULL, par VARCHAR(120) NOT NULL DEFAULT '',
+    lu_at DATETIME DEFAULT NULL, created_at DATETIME NOT NULL, KEY proprietaire_id (proprietaire_id)) $E");
+  // Devis avant travaux : accepté ou refusé par le propriétaire en ligne, puis réglé.
+  $pdo->exec("CREATE TABLE IF NOT EXISTS `{$p}c_prop_devis` (id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY, proprietaire_id INT UNSIGNED NOT NULL, logement_id INT UNSIGNED DEFAULT NULL, titre VARCHAR(200) NOT NULL,
+    description TEXT NULL, montant DECIMAL(10,2) NOT NULL DEFAULT 0, prestataire VARCHAR(160) NOT NULL DEFAULT '', photos TEXT NULL, statut VARCHAR(10) NOT NULL DEFAULT 'envoye', reponse TEXT NULL,
+    decide_at DATETIME DEFAULT NULL, paiement VARCHAR(10) NOT NULL DEFAULT '', regle_at DATETIME DEFAULT NULL, par VARCHAR(120) NOT NULL DEFAULT '', created_at DATETIME NOT NULL,
+    KEY proprietaire_id (proprietaire_id), KEY statut (statut)) $E");
 }

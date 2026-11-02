@@ -557,7 +557,7 @@ function vReglages(){
     <div class="card"><h2>Logo</h2><div class="muted">PNG de préférence, fond transparent. Sans logo, celui de ${esc(PRODUIT)} s'affiche.</div><div class="row3">
     ${imgs.map(([k, l]) => `<label>${l}<span class="hint">${im[k] ? "✓ en place" : "aucun"}</span><input type="file" accept="image/png,image/jpeg,image/webp" data-img="${k}">${im[k] ? `<button type="button" class="ghost" data-imgdel="${k}">Retirer</button>` : ""}</label>`).join("")}</div></div>
     <div class="card"><h2>Société</h2><div class="row3">${f("societe", "Raison sociale")}${f("contact", "Responsable")}<span></span></div>
-    <div class="row3">${f("adresse", "Adresse", 2)}${f("telephone", "Téléphone")}${f("email", "E-mail")}</div><div class="row3">${f("site", "Site")}${f("siret", "ICE")}<span></span></div>${f("legal", "Mentions légales (pied de page)", 2)}</div>
+    <div class="row3">${f("adresse", "Adresse", 2)}${f("telephone", "Téléphone")}${f("email", "E-mail")}</div><div class="row3">${f("site", "Site")}${f("siret", "ICE")}<span></span></div><div class="row3">${f("banque", "Banque")}${f("iban", "RIB (règlements des propriétaires)")}<span></span></div>${f("legal", "Mentions légales (pied de page)", 2)}</div>
     <div class="btns"><button class="primary" id="g-rsave">Enregistrer les réglages</button></div>`;
 }
 function bReglages(){
