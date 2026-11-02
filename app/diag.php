@@ -13,7 +13,7 @@ header('Cache-Control: no-store'); header('X-Robots-Tag: noindex'); header('X-Fr
   exit('<p style="font:15px sans-serif;max-width:560px;margin:40px auto">Diagnostic fermé. Connectez-vous à l\'administration en tant que dirigeant(e), ou, si l\'appli ne s\'ouvre plus, déposez par FTP un fichier vide nommé <b>diag.txt</b> dans le dossier <b>prive</b> : le diagnostic s\'ouvre alors pendant 2 heures.</p>');
 })();
 function ligne($ok, $txt) { echo '<p style="font:15px sans-serif;margin:8px 0">' . ($ok ? '<b style="color:#2e7d32">OK</b> ' : '<b style="color:#c62828">PROBLÈME</b> ') . $txt . '</p>'; }
-echo '<h2 style="font:600 18px sans-serif">' . (defined('PRODUIT_NOM') ? PRODUIT_NOM : 'ORVIA') . ' : diagnostic</h2>';
+echo '<h2 style="font:600 18px sans-serif">' . (defined('PRODUIT_NOM') ? PRODUIT_NOM : 'Keylia') . ' : diagnostic</h2>';
 $v = PHP_VERSION;
 ligne(version_compare($v, '8.0.0', '>='), 'Version PHP : ' . $v . (version_compare($v, '8.0.0', '>=') ? '' : ' (il faut PHP 8.0 minimum : voir le fichier .ovhconfig)'));
 ligne(extension_loaded('pdo_mysql'), 'Extension PDO MySQL');

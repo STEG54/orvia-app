@@ -1,13 +1,13 @@
 /* ORVIA : habillage de la marque, chargé après theme.css. Noir et blanc, Didone pour les titres, Jost pour le texte, angles droits.
    Pour changer de marque : ce fichier, les logos assets/logo-produit*.png, les icônes, et PRODUIT_NOM dans lib.php. */
-@font-face{font-family:'Bodoni Moda';font-style:normal;font-weight:400;font-display:swap;src:url('assets/fonts/bodoni-moda-latin-400-normal.woff2') format('woff2')}
-@font-face{font-family:'Bodoni Moda';font-style:italic;font-weight:400;font-display:swap;src:url('assets/fonts/bodoni-moda-latin-400-italic.woff2') format('woff2')}
-@font-face{font-family:'Bodoni Moda';font-style:normal;font-weight:500;font-display:swap;src:url('assets/fonts/bodoni-moda-latin-500-normal.woff2') format('woff2')}
+@font-face{font-family:'Cormorant Garamond';font-style:normal;font-weight:500;font-display:swap;src:url('assets/fonts/cormorant-garamond-latin-500-normal.woff2') format('woff2')}
+@font-face{font-family:'Cormorant Garamond';font-style:italic;font-weight:500;font-display:swap;src:url('assets/fonts/cormorant-garamond-latin-500-italic.woff2') format('woff2')}
+@font-face{font-family:'Cormorant Garamond';font-style:normal;font-weight:600;font-display:swap;src:url('assets/fonts/cormorant-garamond-latin-600-normal.woff2') format('woff2')}
 @font-face{font-family:'Jost';font-style:normal;font-weight:300;font-display:swap;src:url('assets/fonts/jost-latin-300-normal.woff2') format('woff2')}
 @font-face{font-family:'Jost';font-style:normal;font-weight:400;font-display:swap;src:url('assets/fonts/jost-latin-400-normal.woff2') format('woff2')}
 @font-face{font-family:'Jost';font-style:normal;font-weight:500;font-display:swap;src:url('assets/fonts/jost-latin-500-normal.woff2') format('woff2')}
 @font-face{font-family:'Jost';font-style:normal;font-weight:600;font-display:swap;src:url('assets/fonts/jost-latin-600-normal.woff2') format('woff2')}
-:root{--serif:"Bodoni Moda","Didot","Bodoni 72",Georgia,serif;--sans:"Jost","Futura","Century Gothic",system-ui,sans-serif;--r:0px}
+:root{--serif:"Cormorant Garamond","Garamond",Georgia,serif;--sans:"Jost","Futura","Century Gothic",system-ui,sans-serif;--r:0px}
 body{font-family:var(--sans);font-weight:400;letter-spacing:0}
 [dir=rtl] body,[dir=rtl] input,[dir=rtl] textarea,[dir=rtl] button{font-family:"Noto Naskh Arabic","Geeza Pro",Tahoma,var(--sans)}
 
@@ -17,7 +17,7 @@ body{font-family:var(--sans);font-weight:400;letter-spacing:0}
 .top button{border-radius:0;font-weight:400;letter-spacing:.12em;text-transform:uppercase;font-size:11px}
 
 /* Titres : Didone, sobres */
-h1,h2,h3,.db-h,.big,.db-ct,.db-t b,.home-hero .ht,.tile .tt,.cr-title,.fgh{font-family:var(--serif);font-weight:400;letter-spacing:0}
+h1,h2,h3,.db-h,.big,.db-ct,.db-t b,.home-hero .ht,.tile .tt,.cr-title,.fgh{font-family:var(--serif);font-weight:500;letter-spacing:0}
 h2{font-size:22px}
 .card,.empty,.db-t,.shoot{border-radius:0}
 .card.accent{background:var(--paper);border-top:2px solid var(--esp)}
