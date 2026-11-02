@@ -17,21 +17,21 @@ body{font-family:var(--sans);font-weight:400;letter-spacing:0}
 /* Titres : Didone, sobres */
 h1,h2,h3,.db-h,.big,.db-ct,.db-t b,.home-hero .ht,.tile .tt,.cr-title,.fgh{font-family:var(--serif);font-weight:400;letter-spacing:0}
 h2{font-size:22px}
-.card,.empty,.db-t,.shoot{border-radius:0}
-.card.accent{background:var(--paper);border-top:3px solid var(--laiton)}
+.card,.empty,.db-t,.shoot{border-radius:16px}
+.card.accent{background:#FFFBF3;border:1px solid #E8D9B8}
 th{font-weight:500;font-size:12px;letter-spacing:0}
 
 /* Champs et boutons : angles droits, capitales espacées */
-input,select,textarea{border-radius:0}
+input,select,textarea{border-radius:10px}
 input:focus,select:focus,textarea:focus{border-color:var(--esp);box-shadow:0 0 0 1px var(--esp)}
-button,.btn{border-radius:0;font-weight:500;letter-spacing:.06em}
+button,.btn{border-radius:10px;font-weight:500;letter-spacing:0}
 button.primary,.btn.primary{background:var(--vert);border-color:var(--vert);color:#fff}
 button.primary:hover:not(:disabled){background:var(--vert-2)}
-.tabs button{border-radius:0;font-weight:400;letter-spacing:.04em}
+.tabs button{border-radius:999px;font-weight:500;letter-spacing:0}
 .tabs button[aria-current="page"]{background:var(--vert);border-color:var(--vert);color:#fff}
-.secs button{border-radius:0}
-.chip{border-radius:0}.chip[aria-pressed="true"]{background:var(--vert);border-color:var(--vert)}
-.pill{border-radius:0;background:var(--sand);color:var(--esp);border:1px solid var(--line);font-weight:500;letter-spacing:.04em}
+.secs button{border-radius:999px}
+.chip{border-radius:999px}.chip[aria-pressed="true"]{background:var(--vert);border-color:var(--vert)}
+.pill{border-radius:999px;background:var(--sand);color:var(--esp);border:1px solid var(--line);font-weight:500;letter-spacing:.04em}
 .pill.p-ok{background:#EEF4EF;color:#2F5A3B;border-color:#CFE0D3}
 .pill.p-warn{background:#F7F1E6;color:#7A5410;border-color:#E8DCC4}
 .pill.p-bad{background:#F6ECEA;color:#8E3B2F;border-color:#E6CFCA}
@@ -40,8 +40,8 @@ button.primary:hover:not(:disabled){background:var(--vert-2)}
 /* Tableau de bord et accueil de l'appli : noir uni, plus de dégradé */
 .db-hero,.home-hero{background:var(--vert);border-radius:0;border-bottom:3px solid var(--laiton)}
 .db-ic{background:var(--sand);color:var(--esp)}
-.tile{border-radius:0}
-.demo-ruban{border-radius:0}
+.tile{border-radius:16px}
+.demo-ruban{border-radius:999px}
 
 /* ---------- Appli terrain (Keylia, ardoise, crème et or) : celle de la maquette du site. Lisible en plein soleil, gros boutons, couleurs d'état franches. ---------- */
 .pill{border-radius:999px;padding:4px 10px}
@@ -132,3 +132,15 @@ body:has(.demo-ruban) #view{padding-bottom:96px}
 .pf-ph{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}.pf-ph img{width:72px;height:72px;object-fit:cover;border-radius:8px;display:block}
 .pf-d{border-top:1px solid var(--line);padding-top:8px}
 .kt-kit{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}.kt-kit span{background:var(--pierre);border-radius:999px;padding:4px 10px;font-size:14px}.kt-kit b{color:var(--vert)}
+
+/* Navigation de l'administration : six rubriques, puis leurs pages */
+.ky-rub{gap:4px;background:#fff;border-radius:999px;padding:5px;box-shadow:0 1px 0 rgba(44,47,52,.06);flex-wrap:wrap;width:max-content;max-width:100%}
+.ky-rub button{border:0;background:transparent;padding:9px 16px;font-size:14px;color:var(--ink)}
+.ky-rub button[aria-current="page"]{background:var(--vert);color:#fff}
+.ky-sub{display:flex;gap:18px;flex-wrap:wrap;padding:2px 8px;border-bottom:1px solid var(--line)}
+.ky-sub button{background:none;border:0;border-bottom:2px solid transparent;border-radius:0;padding:8px 0;font-size:14px;color:var(--muted);font-weight:500}
+.ky-sub button[aria-current="page"]{color:var(--vert);border-bottom-color:var(--laiton)}
+.card{border-color:transparent;box-shadow:0 1px 0 rgba(44,47,52,.05)}
+.ky-jour{background:var(--vert);color:#fff;border-radius:18px;padding:22px 24px;display:flex;justify-content:space-between;gap:18px;flex-wrap:wrap;align-items:center}
+.ky-date{font-size:13px;color:#C9D0D5;text-transform:capitalize}.ky-salut{font-family:var(--serif);font-size:30px;line-height:1.15;margin:2px 0 4px}.ky-phrase{color:#E4E8EB;max-width:560px}
+.ky-chiffres{display:flex;gap:10px}.ky-chiffres div{background:rgba(255,255,255,.1);border-radius:14px;padding:10px 16px;min-width:92px;display:grid}.ky-chiffres b{font-family:var(--serif);font-weight:400;font-size:28px;line-height:1.1;color:#fff}.ky-chiffres span{font-size:12px;color:#C9D0D5}

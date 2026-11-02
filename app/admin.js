@@ -10,6 +10,9 @@ const ALL_TABS = [["rapports","Comptes rendus"],["client","Rapports d'animation"
 // Keylia : les écrans de l'ancien métier (devis, factures, clients, documents de paie, fiches d'animation) ne sont pas proposés à une conciergerie.
 // Maintenance (mises à jour par fichier) : réservée à l'éditeur, qui héberge les conciergeries.
 const ADM_SUBS = [...CZ_SUBS, ["reglages","Réglages"],["admins","Administrateurs"]];
+const KY_RUBRIQUES = [["Aujourd'hui", ["cz_jour"]], ["Séjours", ["cz_planning", "cz_reservations", "cz_missions", "cz_incidents", "cz_avis"]], ["Logements", ["cz_logements", "cz_intendance", "cz_services"]],
+  ["Propriétaires", ["cz_proprietaires", "cz_rapports", "cz_taxe"]], ["Équipe", ["cz_equipe"]], ["Réglages", ["reglages", "admins"]]];
+const KY_DERNIERE = {};
 // Onglets rangés dans Administration pour la direction (les autres administrateurs qui y ont droit les gardent dans Reporting).
 const ADM_TABS = ["admins", "animatrices", "documents", "formations", "marques", "magasins"];
 const TABS = () => ALL_TABS.filter(t => (!t[2] || (t[2] === "gestion" ? !!(A.L.moi || {}).gestion : can(t[2]))));
@@ -80,9 +83,16 @@ function shell(inner){
   const dash = surDash(), adm = estAdm(A.tab) && !dash, peut = !!(A.L.moi || {}).gestion;
   // ORVIA : un seul espace (Administration). L'espace « Reporting » d'Amaya (comptes rendus d'animation) n'est pas proposé.
   const sec = "";
-  const row = (adm || peut) ? ADM_SUBS.map(([k, l]) => { const on = ADM_TABS.includes(k) ? A.tab === k : A.tab === "gestion" && (typeof G !== "undefined" && G.sub === k);
-      return `<button data-asub="${k}" aria-current="${on ? "page" : "false"}">${l}</button>`; }).join("")
-    : TABS().filter(t => !estAdm(t[0])).map(([k,l]) => `<button data-tab="${k}" aria-current="${A.tab===k?"page":"false"}">${l}</button>`).join("");
+  if (adm || peut) {
+    // Keylia : six rubriques, et leurs pages en second niveau (au lieu d'une rangée de seize onglets).
+    const cur = ADM_TABS.includes(A.tab) ? A.tab : (typeof G !== "undefined" ? G.sub : ""), lab = Object.fromEntries(ADM_SUBS);
+    const grp = KY_RUBRIQUES.find(r => r[1].includes(cur)) || KY_RUBRIQUES[0];
+    const top = KY_RUBRIQUES.map(r => `<button data-asub="${(KY_DERNIERE[r[0]] && r[1].includes(KY_DERNIERE[r[0]])) ? KY_DERNIERE[r[0]] : r[1][0]}" aria-current="${r === grp ? "page" : "false"}">${r[0]}</button>`).join("");
+    const sub = grp[1].length > 1 ? `<div class="ky-sub">${grp[1].filter(k => lab[k]).map(k => `<button data-asub="${k}" aria-current="${k === cur ? "page" : "false"}">${lab[k]}</button>`).join("")}</div>` : "";
+    KY_DERNIERE[grp[0]] = cur;
+    return `${sec}<nav class="tabs ky-rub">${top}</nav>${sub}${inner}`;
+  }
+  const row = TABS().filter(t => !estAdm(t[0])).map(([k,l]) => `<button data-tab="${k}" aria-current="${A.tab===k?"page":"false"}">${l}</button>`).join("");
   return `${sec}<div class="tabs">${row}</div>${inner}`;
 }
 function bindShell(){
