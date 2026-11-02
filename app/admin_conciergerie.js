@@ -24,7 +24,7 @@ async function czLoad(){
   if (!CZ.resF.from) { const t = czIso(new Date()); CZ.resF.from = czAdd(t, -3); CZ.resF.to = czAdd(t, 30); CZ.misF.from = t; CZ.misF.to = czAdd(t, 7); }
   if (!CZ.planD) CZ.planD = czIso(new Date());
   if (G.sub === "cz_planning") CZ.plan = await czapi("planning", null, "date=" + CZ.planD);
-  if (G.sub === "cz_rapports") { if (!CZ.rapF) { const t = czIso(new Date()); CZ.rapF = {from:t.slice(0, 8) + "01", to:t, par:"logement"}; } CZ.rap = await czapi("rapport", null, `from=${CZ.rapF.from}&to=${CZ.rapF.to}&par=${CZ.rapF.par}`); }
+  if (G.sub === "cz_rapports") { if (!CZ.rapF) { const p = czPeriode("30j"); CZ.rapF = {from:p[0], to:p[1], par:"logement", k:"30j"}; } CZ.rap = await czapi("rapport", null, `from=${CZ.rapF.from}&to=${CZ.rapF.to}&par=${CZ.rapF.par}`); }
   if (G.sub === "cz_avis") CZ.avis = await czapi("avis");
   if (G.sub === "cz_services") CZ.srv = await czapi("services");
   if (G.sub === "cz_jour") CZ.jour = await czapi("aujourdhui");
@@ -454,6 +454,7 @@ function czBMessages(r){
 const czN = v => v == null ? "–" : (+v).toLocaleString("fr-FR", {maximumFractionDigits:1});
 function czPeriode(k){
   const d = new Date(), y = d.getFullYear(), m = d.getMonth(), iso = x => czIso(x);
+  if (k === "30j") return [iso(new Date(y, m, d.getDate() - 29)), iso(d)];
   if (k === "mois") return [iso(new Date(y, m, 1)), iso(d)];
   if (k === "mois-1") return [iso(new Date(y, m - 1, 1)), iso(new Date(y, m, 0))];
   if (k === "trim") { const q = Math.floor(m / 3) * 3; return [iso(new Date(y, q, 1)), iso(d)]; }
@@ -469,16 +470,21 @@ function czVRap(){
     : [esc(r.nom) + (r.detail ? `<div class="hint">${esc(r.detail.join(", "))}</div>` : r.proprietaire ? `<div class="hint">${esc(r.proprietaire)}</div>` : ""), r.nuits, r.occupation + " %", r.sejours, `${r.menages_faits}/${r.menages}`, r.retards ? `<b style="color:#8e3b2f">${r.retards}</b>` : 0,
        r.proprete != null ? czN(r.proprete) + "/5" : "–", r.note_sejour != null ? czN(r.note_sejour) + "/5" : "–", r.incidents_ouverts ? `${r.incidents} (${r.incidents_ouverts} ouvert)` : r.incidents, czDH(r.depenses), czDH(r.ca_services), czDH(r.marge_services), r.taux_commande + " %"];
   return `<div class="card no-print"><div style="display:flex;gap:10px;flex-wrap:wrap;align-items:end">
-      <label>Période<select id="rp"><option value="">Personnalisée</option><option value="mois">Ce mois</option><option value="mois-1">Mois dernier</option><option value="trim">Ce trimestre</option><option value="annee">Cette année</option></select></label>
+      <label>Période<select id="rp"><option value="">Personnalisée</option><option value="30j" ${F.k === "30j" ? "selected" : ""}>30 derniers jours</option><option value="mois">Ce mois</option><option value="mois-1">Mois dernier</option><option value="trim">Ce trimestre</option><option value="annee">Cette année</option></select></label>
       <label>Du<input type="date" id="rf" value="${F.from}"></label><label>Au<input type="date" id="rt" value="${F.to}"></label>
       <label>Par<select id="rb"><option value="logement" ${F.par === "logement" ? "selected" : ""}>Logement</option><option value="proprietaire" ${F.par === "proprietaire" ? "selected" : ""}>Propriétaire</option><option value="responsable" ${F.par === "responsable" ? "selected" : ""}>Responsable</option></select></label>
       <button class="primary" id="rgo">Afficher</button><button class="btn" id="rpr">Imprimer</button><button class="btn ghost" id="rcsv">Exporter (tableur)</button></div></div>
     <div class="card"><h2 style="margin:0">Rapport du ${esc(czD(R.from))} au ${esc(czD(R.to))}</h2><div class="hint">${R.jours} jours · ${T.logements} logements</div></div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px">
       ${kpi(czN(T.nuits), "Nuits louées", T.occupation + " % d'occupation")}${kpi(czN(T.sejours), "Séjours", czN(T.voyageurs) + " voyageurs")}
       ${kpi(`${T.menages_faits}/${T.menages}`, "Ménages faits", T.retards ? T.retards + " intervention(s) en retard" : "aucun retard")}
       ${kpi(T.proprete != null ? czN(T.proprete) + "/5" : "–", "Propreté notée", T.avis + " avis")}${kpi(czN(T.incidents), "Signalements", czDH(T.depenses) + " de dépenses")}
       ${kpi(czDH(T.ca_services), "Services vendus", "marge " + czDH(T.marge_services))}${kpi(T.taux_commande + " %", "Séjours avec commande", czN(T.commandes) + " articles")}</div>
+    ${R.rentabilite && R.rentabilite.cout > 0 ? (K => `<div class="card" style="border-left:4px solid var(--laiton,#C6A15B)"><h3 style="margin:0 0 6px">Ce que Keylia vous rapporte</h3>
+      <div style="display:flex;flex-wrap:wrap;gap:22px;align-items:baseline"><div><div style="font-size:1.7rem;font-weight:600">${czDH(K.marge)}</div><div class="muted">de marge sur les services vendus aux voyageurs</div></div>
+      <div><div style="font-size:1.7rem;font-weight:600">${czDH(K.cout)}</div><div class="muted">coût de Keylia sur la période (${K.logements_actifs} logement${K.logements_actifs > 1 ? "s" : ""} actif${K.logements_actifs > 1 ? "s" : ""} à ${czN(K.tarif)} DH HT par mois)</div></div>
+      ${K.multiple != null ? `<div><div style="font-size:1.7rem;font-weight:600">${K.multiple >= 1 ? "× " + czN(K.multiple) : czN(Math.round(K.multiple * 100)) + " %"}</div><div class="muted">${K.multiple >= 1 ? "l'abonnement est remboursé par les ventes" : "de l'abonnement couvert par les ventes"}</div></div>` : ""}</div>
+      ${K.multiple != null && K.multiple < 1 ? `<div class="hint" style="margin-top:8px">Pour couvrir l'abonnement, proposez l'eau, les fruits et le transfert depuis l'aéroport dans le livret de chaque logement.</div>` : ""}</div>`)(R.rentabilite) : ""}
     ${R.alertes.length ? `<div class="card accent"><h3 style="margin:0 0 6px">À regarder</h3><ul style="margin:0">${R.alertes.map(a => `<li>${esc(a)}</li>`).join("")}</ul></div>` : `<div class="card"><span class="pill p-ok">Tout est en ordre sur la période</span></div>`}
     <div class="card"><h3 style="margin:0 0 8px">Détail par ${F.par === "responsable" ? "responsable" : F.par === "proprietaire" ? "propriétaire" : "logement"}</h3><div class="scroll"><table class="tbl" id="rtab"><thead><tr>${head.map(h => `<th>${h}</th>`).join("")}</tr></thead><tbody>
       ${R.lignes.map(r => `<tr>${row(r).map(c => `<td>${c}</td>`).join("")}</tr>`).join("") || `<tr><td colspan="${head.length}" class="muted">Rien sur la période.</td></tr>`}</tbody></table></div></div>

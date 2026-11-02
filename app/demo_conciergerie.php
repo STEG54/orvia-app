@@ -2,20 +2,21 @@
 // ORVIA : données fictives de la démo (conciergerie au Maroc). Appelé par demo_seed(), dans les tables préfixées du visiteur.
 require_once __DIR__ . '/conciergerie_lib.php';
 
-/** Photo fictive d'une pièce : aplats sobres, sans personne. */
+/** Photo de démonstration d'une pièce : un cadrage différent (selon la graine) d'une vraie photo d'intérieur de la démo. */
 function cz_demo_photo(int $graine, string $piece): string {
-  mt_srand($graine); $w = 1200; $h = 900; $im = imagecreatetruecolor($w, $h);
-  $tons = [[236, 230, 220], [222, 214, 200], [240, 238, 234], [214, 222, 226], [230, 222, 214]]; $t = $tons[mt_rand(0, 4)];
-  imagefill($im, 0, 0, imagecolorallocate($im, ...$t));
-  imagefilledrectangle($im, 0, (int)($h * .68), $w, $h, imagecolorallocate($im, ...array_map(fn($c) => $c - 38, $t)));
-  $f = imagecolorallocate($im, 252, 251, 248); $o = imagecolorallocate($im, 60, 58, 54);
-  if (str_contains($piece, 'Chambre')) { imagefilledrectangle($im, 260, 460, 940, 700, $f); imagefilledrectangle($im, 240, 380, 960, 470, imagecolorallocate($im, 120, 108, 92)); imagefilledrectangle($im, 300, 470, 520, 540, imagecolorallocate($im, 245, 243, 238)); imagefilledrectangle($im, 680, 470, 900, 540, imagecolorallocate($im, 245, 243, 238)); }
-  elseif (str_contains($piece, 'bain')) { imagefilledellipse($im, 600, 600, 520, 200, $f); imagefilledrectangle($im, 520, 180, 680, 420, imagecolorallocate($im, 200, 210, 214)); }
-  elseif (str_contains($piece, 'Cuisine')) { imagefilledrectangle($im, 120, 500, 1080, 700, imagecolorallocate($im, 90, 84, 76)); imagefilledrectangle($im, 120, 470, 1080, 500, $f); imagefilledrectangle($im, 200, 160, 520, 360, imagecolorallocate($im, 206, 200, 190)); }
-  elseif (str_contains($piece, 'Terrasse') || str_contains($piece, 'Piscine')) { imagefilledrectangle($im, 0, 0, $w, (int)($h * .5), imagecolorallocate($im, 196, 214, 226)); imagefilledrectangle($im, 160, 560, 1040, 760, imagecolorallocate($im, 110, 170, 190)); }
-  else { imagefilledrectangle($im, 220, 470, 980, 640, imagecolorallocate($im, 140, 128, 112)); imagefilledrectangle($im, 220, 400, 980, 480, imagecolorallocate($im, 160, 148, 132)); imagefilledrectangle($im, 760, 200, 960, 360, $f); }
-  imagestring($im, 5, 30, 30, iconv('UTF-8', 'ASCII//TRANSLIT', 'Photo de demonstration - ' . $piece), $o);
-  $tmp = tempnam(sys_get_temp_dir(), 'czd'); imagejpeg($im, $tmp, 82); imagedestroy($im);
+  $p = mb_strtolower($piece);
+  $src = match (true) {
+    str_contains($p, 'chambre') => 'bed', str_contains($p, 'bain') || str_contains($p, 'linge') => 'detail',
+    str_contains($p, 'piscine') || str_contains($p, 'terrasse') || str_contains($p, 'patio') || str_contains($p, 'jardin') => 'pool',
+    str_contains($p, 'porte') || str_contains($p, 'entrée') || str_contains($p, 'boîte') || str_contains($p, 'rue') => 'door',
+    default => 'hero' };
+  static $sources = [];   // chaque photo source n'est décodée qu'une fois
+  $im = $sources[$src] ??= (@imagecreatefromjpeg(__DIR__ . "/assets/demo/$src.jpg") ?: (function () { $i = imagecreatetruecolor(1200, 900); imagefill($i, 0, 0, imagecolorallocate($i, 236, 230, 220)); return $i; })());
+  mt_srand($graine); $w = imagesx($im); $h = imagesy($im);
+  $z = mt_rand(62, 92) / 100; $cw = (int)($w * $z); $ch = (int)min($h, $cw * 0.75); $cw = (int)min($cw, $ch / 0.75);
+  $x = mt_rand(0, max(0, $w - $cw)); $y = mt_rand(0, max(0, $h - $ch));
+  $out = imagecreatetruecolor(1200, 900); imagecopyresampled($out, $im, 0, 0, $x, $y, 1200, 900, $cw, $ch);
+  $tmp = tempnam(sys_get_temp_dir(), 'czd'); imagejpeg($out, $tmp, 84); imagedestroy($out);
   $r = save_image($tmp); @unlink($tmp); return $r['fichier'];
 }
 
@@ -23,7 +24,7 @@ function cz_demo_seed(): void {
   $pdo = db(); require_once __DIR__ . '/migrations_lib.php'; mig_4($pdo); $now = now();
   reglage_set('theme', 'orvia'); reglage_set('cz_pays', 'MA'); reglage_set('cz_code_auto', '0');
   // Équipe terrain (fictive)
-  $ia = $pdo->prepare("INSERT INTO animatrices (prenom, nom, telephone, email, zone, actif, statut, created_at, rgpd_info_at, rgpd_image_at) VALUES (?,?,?,?,'France',1,'actif',?,?,?)"); $E = [];
+  $ia = $pdo->prepare("INSERT INTO animatrices (prenom, nom, telephone, email, zone, actif, statut, created_at, rgpd_info_at, rgpd_image_at) VALUES (?,?,?,?,'Marrakech',1,'actif',?,?,?)"); $E = [];
   foreach ([['Fatima Zahra', 'Benali'], ['Youssef', 'Amrani'], ['Khadija', 'Ouazzani']] as $i => [$p, $n]) { $ia->execute([$p, $n, '06 00 00 1' . $i . ' 0' . $i, 'equipe' . $i . '@demo-orvia.invalid', $now, $now, $now]); $E[] = (int)$pdo->lastInsertId(); }
   // Propriétaires
   $ip = $pdo->prepare("INSERT INTO c_proprietaires (nom, email, telephone, plafond, created_at) VALUES (?,?,?,?,?)"); $P = [];
@@ -59,14 +60,26 @@ function cz_demo_seed(): void {
     $ir->execute([$LID[$li], $src, $src === 'direct' ? '' : $src . ':demo' . $k, $arr, $dep, $lib, $nb, cz_hash($t), cz_enc($t), $a < 0 ? $arr . ' 09:00:00' : null, $now, $now]);
     $RID[$k] = (int)$pdo->lastInsertId(); cz_mission_depart($RID[$k]);
   }
+  // Deux mois d'historique par logement, pour des rapports pleins : séjours, commandes, avis, quelques dépenses.
+  mt_srand(42); $H = []; $debut = [0 => -6, 1 => -3, 2 => -1, 3 => -4, 4 => 0];
+  $srcs = [['airbnb', 'Reserved'], ['airbnb', 'Reserved'], ['booking', 'Booking'], ['booking', 'Booking'], ['direct', 'Réservation directe'], ['abritel', 'Réservation']];
+  foreach ($LID as $li => $lid) { $j = -64 + mt_rand(0, 3);
+    while (true) { $n = mt_rand(2, 6); if ($j + $n > $debut[$li]) break; [$src, $lib] = $srcs[mt_rand(0, 5)];
+      $t = cz_jeton(); $arr = demo_j($j); $dep = demo_j($j + $n);
+      $ir->execute([$lid, $src, $src === 'direct' ? '' : $src . ':hist' . $li . '-' . $j, $arr, $dep, $lib, mt_rand(2, $li === 3 || $li === 0 ? 6 : 3), cz_hash($t), cz_enc($t), $arr . ' 09:00:00', $now, $now]);
+      $rid = (int)$pdo->lastInsertId(); cz_mission_depart($rid); $H[] = [$rid, $li, $j, $n]; $j += $n + (mt_rand(0, 3) === 0 ? mt_rand(1, 3) : 0); } }
   // Missions passées : faites, avec photos ; mission du jour en cours.
-  $g = 100;
+  $g = 100; $pool = []; $recent = demo_j(-2);
   foreach ($pdo->query("SELECT m.id, m.date, l.checklist FROM c_missions m JOIN c_logements l ON l.id = m.logement_id ORDER BY m.date")->fetchAll() as $m) {
     if ($m['date'] > demo_j(0)) continue; $etat = [];
-    foreach (cz_checklist($m) as $i => $p) { $ph = []; for ($n = 0; $n < $p['photos']; $n++) $ph[] = cz_demo_photo($g++, $p['piece']); $etat[$i] = ['ok' => true, 'photos' => $ph]; }
+    foreach (cz_checklist($m) as $i => $p) { $ph = [];
+      for ($n = 0; $n < $p['photos']; $n++) { $cle = $p['piece'] . '|' . $n;   // l'historique ancien réutilise les mêmes clichés, les missions récentes ont les leurs
+        $ph[] = $m['date'] >= $recent || !isset($pool[$cle]) ? ($pool[$cle] = cz_demo_photo($g++, $p['piece'])) : $pool[$cle]; }
+      $etat[$i] = ['ok' => true, 'photos' => $ph]; }
     $fait = $m['date'] < demo_j(0);
     if (!$fait) $etat = array_slice($etat, 0, 2, true); // mission du jour : deux pièces faites, le reste à faire
-    $pdo->prepare("UPDATE c_missions SET etat = ?, statut = ?, debut_at = ?, fin_at = ? WHERE id = ?")->execute([json_encode($etat), $fait ? 'faite' : 'en_cours', $m['date'] . ' 11:05:00', $fait ? $m['date'] . ' 13:20:00' : null, $m['id']]);
+    $h0 = sprintf('%02d:%02d', mt_rand(10, 11), mt_rand(0, 59)); $h1 = sprintf('%02d:%02d', mt_rand(12, 14), mt_rand(0, 59));
+    $pdo->prepare("UPDATE c_missions SET etat = ?, statut = ?, debut_at = ?, fin_at = ? WHERE id = ?")->execute([json_encode($etat), $fait ? 'faite' : 'en_cours', $m['date'] . " $h0:00", $fait ? $m['date'] . " $h1:00" : null, $m['id']]);
   }
   // Une mission de contrôle à venir.
   $pdo->prepare("INSERT INTO c_missions (logement_id, type, date, heure, animatrice_id, statut, etat, note, created_at) VALUES (?, 'controle', ?, '10:00', ?, 'a_faire', '[]', 'Vérifier la climatisation de la chambre d''amis', ?)")->execute([$LID[0], demo_j(2), $E[0], $now]);
@@ -105,4 +118,14 @@ function cz_demo_seed(): void {
   $ii = $pdo->prepare("INSERT INTO c_incidents (logement_id, auteur, description, photo, bloquant, statut, cout, proprio_statut, created_at, clos_at) VALUES (?,?,?,?,?,?,?,?,?,?)");
   $ii->execute([$LID[1], 'Youssef Amrani', 'Mitigeur de la douche qui fuit', cz_demo_photo(900, 'Salle de bain'), 0, 'ouvert', 450, 'demande', demo_j(-1) . ' 12:10:00', null]);
   $ii->execute([$LID[0], 'Fatima Zahra Benali', 'Ampoule de l\'entrée remplacée', null, 0, 'clos', 35, '', demo_j(-5) . ' 14:00:00', demo_j(-5) . ' 16:00:00']);
+  // Historique : environ quatre séjours sur dix commandent quelque chose, la plupart laissent un avis.
+  $coms = ['Logement impeccable, on reviendra.', 'Très propre, accueil chaleureux.', 'Superbe terrasse, literie parfaite.', 'Rien à redire.', 'Le petit-déjeuner du premier matin était une très bonne idée.', 'Calme, propre, bien situé.', 'Parfait pour notre famille.', ''];
+  foreach ($H as [$rid, $li, $j, $n]) {
+    if (mt_rand(1, 10) <= 4) foreach ((array)array_rand($SID, mt_rand(1, 2)) as $si) $ic->execute([$rid, $si === 0 ? 2 : 1, 'faite', demo_j($j - 1) . ' 19:00:00', $SID[$si]]);
+    $pr = mt_rand(1, 12) === 1 ? 4 : 5; if ($li === 1 && mt_rand(1, 4) === 1) $pr = 4;
+    if (mt_rand(1, 10) <= 7) $iav->execute(['arrivee', $pr, null, null, '', demo_j($j) . ' 18:00:00', $rid]);
+    if (mt_rand(1, 10) <= 5) $iav->execute(['sejour', null, mt_rand(1, 6) === 1 ? 4 : 5, 5, $coms[mt_rand(0, 7)], demo_j($j + $n) . ' 15:00:00', $rid]);
+  }
+  foreach ([[3, 'Robinet extérieur de la piscine changé', 280, -38], [0, 'Climatisation du salon rechargée', 650, -27], [2, 'Serrure de la boîte à clés remplacée', 220, -19], [4, 'Store de la chambre réparé', 180, -12]] as [$li, $d, $c, $jj])
+    $ii->execute([$LID[$li], 'Équipe Keylia', $d, null, 0, 'clos', $c, 'accepte', demo_j($jj) . ' 10:00:00', demo_j($jj) . ' 17:00:00']);
 }

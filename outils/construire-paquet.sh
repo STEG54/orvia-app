@@ -16,7 +16,7 @@ else git archive --format=tar --prefix=amaya/ HEAD:app | tar -x -C pkg; fi
 python3 - "$racine/pkg/amaya" <<'P'
 import hashlib, json, os, glob, sys
 root = sys.argv[1]
-files = sorted([os.path.relpath(f, root) for f in glob.glob(root + '/*') if os.path.isfile(f) and f.rsplit('.', 1)[-1] in ('php', 'js', 'css', 'txt') and not f.endswith(('diag.php', 'installation.php', 'config.php'))] + ['.htaccess', 'assets/icon-192.png', 'assets/logo-amaya.png'])
+files = sorted([os.path.relpath(f, root) for f in glob.glob(root + '/*') if os.path.isfile(f) and f.rsplit('.', 1)[-1] in ('php', 'js', 'css', 'txt') and not f.endswith(('diag.php', 'installation.php', 'config.php'))] + ['.htaccess', 'assets/icon-192.png', 'assets/logo-amaya.png'] + sorted(os.path.relpath(f, root) for f in glob.glob(root + '/assets/demo/*.jpg')))
 m = {f: hashlib.md5(open(os.path.join(root, f), 'rb').read()).hexdigest() for f in files}
 p = os.path.join(root, 'diag.php'); s = open(p).read().replace("/*MANIFEST*/", json.dumps(m)); open(p, 'w').write(s)
 print(len(m), 'fichiers suivis')

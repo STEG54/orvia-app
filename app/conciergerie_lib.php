@@ -607,5 +607,9 @@ function cz_rapport(string $from, string $to, string $par): array {
     if ($l['incidents_ouverts']) $alertes[] = $l['nom'] . ' : ' . $l['incidents_ouverts'] . ' signalement(s) encore ouvert(s)';
     if ($l['sejours'] >= 3 && !$l['commandes']) $alertes[] = $l['nom'] . ' : aucun service vendu sur ' . $l['sejours'] . ' séjours';
   }
-  return ['from' => $from, 'to' => $to, 'jours' => $jours, 'par' => $par, 'total' => $total, 'lignes' => $lignes, 'services' => array_map(fn($s) => ['nom' => $s['nom'], 'quantite' => (int)$s['q'], 'ca' => round((float)$s['ca'], 2), 'marge' => round((float)$s['mg'], 2)], $st->fetchAll()), 'alertes' => $alertes];
+  // Ce que Keylia coûte sur la période (logements ayant accueilli au moins un séjour), face à la marge des services vendus.
+  $actifs = count(array_filter($L, fn($l) => $l['sejours'] > 0)); $tarif = (float)reglage('cz_tarif_logement', '65');
+  $cout = round($actifs * $tarif * $jours / 30);
+  $renta = ['logements_actifs' => $actifs, 'tarif' => $tarif, 'cout' => $cout, 'marge' => round((float)$total['marge_services'], 2), 'multiple' => $cout > 0 ? round($total['marge_services'] / $cout, 1) : null];
+  return ['from' => $from, 'to' => $to, 'jours' => $jours, 'par' => $par, 'total' => $total, 'rentabilite' => $renta, 'lignes' => $lignes, 'services' => array_map(fn($s) => ['nom' => $s['nom'], 'quantite' => (int)$s['q'], 'ca' => round((float)$s['ca'], 2), 'marge' => round((float)$s['mg'], 2)], $st->fetchAll()), 'alertes' => $alertes];
 }

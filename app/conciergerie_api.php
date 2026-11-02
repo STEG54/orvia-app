@@ -278,8 +278,13 @@ try {
     /* ================= Équipe terrain (appli) ================= */
     case 'mes_missions':
       $aid = c_agent(); $j = date('Y-m-d');
-      $st = db()->prepare("SELECT m.id, m.type, m.date, m.heure, m.statut, m.note, l.nom logement, l.ville, l.adresse FROM c_missions m JOIN c_logements l ON l.id = m.logement_id WHERE m.animatrice_id = ? AND (m.date BETWEEN ? AND ? OR (m.date < ? AND m.statut <> 'faite')) ORDER BY m.date, m.heure");
-      $st->execute([$aid, $j, date('Y-m-d', strtotime('+7 days')), $j]); c_out(['missions' => $st->fetchAll(), 'aujourdhui' => $j]);
+      $st = db()->prepare("SELECT m.id, m.type, m.date, m.heure, m.statut, m.note, m.etat, m.logement_id, l.nom logement, l.ville, l.adresse, l.checklist FROM c_missions m JOIN c_logements l ON l.id = m.logement_id WHERE m.animatrice_id = ? AND (m.date BETWEEN ? AND ? OR (m.date < ? AND m.statut <> 'faite')) ORDER BY m.date, m.heure");
+      $st->execute([$aid, $j, date('Y-m-d', strtotime('+7 days')), $j]);
+      // Avancement (pièces validées) et une photo du logement, pour la carte de la mission.
+      $out = array_map(function ($m) { $etat = cz_etat($m); $P = cz_checklist($m); $ok = 0; $ph = null;
+        foreach ($P as $i => $_) { if (!empty($etat[$i]['ok'])) $ok++; if (!$ph && !empty($etat[$i]['photos'][0])) $ph = photo_url($etat[$i]['photos'][0], true); }
+        unset($m['etat'], $m['checklist'], $m['logement_id']); return $m + ['pieces' => count($P), 'pieces_ok' => $ok, 'vignette' => $ph]; }, $st->fetchAll());
+      c_out(['missions' => $out, 'aujourdhui' => $j]);
 
     case 'ma_mission':
       $m = c_mission_acces((int)($_GET['id'] ?? 0)); $etat = cz_etat($m); $P = [];
