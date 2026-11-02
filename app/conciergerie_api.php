@@ -233,6 +233,11 @@ try {
       if ($t !== '') cz_message($rid, 'gestion', $t);
       db()->prepare("UPDATE c_messages SET a_traiter = 0, traite_at = ? WHERE reservation_id = ? AND a_traiter = 1")->execute([now(), $rid]); c_out(['ok' => true]);
 
+    case 'rapport':
+      c_admin(); $f = c_date($_GET['from'] ?? date('Y-m-01')); $t = c_date($_GET['to'] ?? date('Y-m-d')); if ($t < $f) [$f, $t] = [$t, $f];
+      $par = in_array($_GET['par'] ?? '', ['logement', 'proprietaire', 'responsable'], true) ? $_GET['par'] : 'logement';
+      c_out(cz_rapport($f, $t, $par));
+
     case 'planning':
       c_admin(); c_out(cz_planning(c_date($_GET['date'] ?? date('Y-m-d'))));
 

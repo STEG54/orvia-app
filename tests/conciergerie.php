@@ -143,6 +143,9 @@ $r = c('voy_info', null, 't=' . $tokA); $Ms = $r['json']['messages'] ?? []; t('r
 $r = c('aujourdhui'); t('question traitée', !in_array('Peut-on arriver à 11 h ?', array_column($r['json']['questions'] ?? [], 'texte'), true));
 $r = c('wa_brouillon', ['id' => $ra, 'message' => 'Bonjour']); t('brouillon refusé proprement sans assistant', $r['code'] === 400, $r['body']);
 
+$r = c('rapport', null, 'par=proprietaire'); t('rapport du mois par propriétaire', $r['code'] === 200 && isset($r['json']['total']['nuits']) && count($r['json']['lignes'] ?? []) >= 1, $r['body']);
+$r = c('rapport', null, 'par=responsable'); t('rapport par responsable', $r['code'] === 200 && is_array($r['json']['lignes'] ?? null), $r['body']);
+
 echo "Espace propriétaire\n";
 $r = c('proprietaire_lien', ['id' => $pid]); preg_match('/#([a-f0-9]{48})$/', (string)($r['json']['lien'] ?? ''), $m); $pt = $m[1] ?? ''; t('lien propriétaire créé', $pt !== '', $r['body']);
 t('page propriétaire', http('proprietaire.php', null, false, false)['code'] === 200);

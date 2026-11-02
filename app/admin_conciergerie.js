@@ -1,6 +1,6 @@
 // ORVIA : administration de la conciergerie (Aujourd'hui, Logements, Réservations, Missions, Signalements, Propriétaires).
-const CZ = { ini:null, jour:null, logs:null, ed:null, res:null, resF:{ from:"", to:"", logement:"" }, det:null, mis:null, misF:{ from:"", to:"" }, mdet:null, inc:null, incS:"ouvert", prop:null, lien:null, decl:null, plan:null, planD:"", avis:null, srv:null, srvEd:null };
-const CZ_SUBS = [["cz_jour","Aujourd'hui"],["cz_planning","Planning"],["cz_reservations","Réservations"],["cz_missions","Missions"],["cz_logements","Logements"],["cz_incidents","Signalements"],["cz_proprietaires","Propriétaires"],["cz_avis","Avis"],["cz_services","Services"]];
+const CZ = { ini:null, jour:null, logs:null, ed:null, res:null, resF:{ from:"", to:"", logement:"" }, det:null, mis:null, misF:{ from:"", to:"" }, mdet:null, inc:null, incS:"ouvert", prop:null, lien:null, decl:null, rap:null, rapF:null, plan:null, planD:"", avis:null, srv:null, srvEd:null };
+const CZ_SUBS = [["cz_jour","Aujourd'hui"],["cz_planning","Planning"],["cz_reservations","Réservations"],["cz_missions","Missions"],["cz_logements","Logements"],["cz_incidents","Signalements"],["cz_proprietaires","Propriétaires"],["cz_rapports","Rapports"],["cz_avis","Avis"],["cz_services","Services"]];
 async function czapi(action, body, query){
   const url = "conciergerie_api.php?action=" + action + (query ? "&" + query : "");
   const r = await fetch(url, body ? {method:"POST", credentials:"same-origin", headers:{"Content-Type":"application/json","X-Requested-With":"amaya"}, body:JSON.stringify(body)} : {credentials:"same-origin"});
@@ -24,6 +24,7 @@ async function czLoad(){
   if (!CZ.resF.from) { const t = czIso(new Date()); CZ.resF.from = czAdd(t, -3); CZ.resF.to = czAdd(t, 30); CZ.misF.from = t; CZ.misF.to = czAdd(t, 7); }
   if (!CZ.planD) CZ.planD = czIso(new Date());
   if (G.sub === "cz_planning") CZ.plan = await czapi("planning", null, "date=" + CZ.planD);
+  if (G.sub === "cz_rapports") { if (!CZ.rapF) { const t = czIso(new Date()); CZ.rapF = {from:t.slice(0, 8) + "01", to:t, par:"logement"}; } CZ.rap = await czapi("rapport", null, `from=${CZ.rapF.from}&to=${CZ.rapF.to}&par=${CZ.rapF.par}`); }
   if (G.sub === "cz_avis") CZ.avis = await czapi("avis");
   if (G.sub === "cz_services") CZ.srv = await czapi("services");
   if (G.sub === "cz_jour") CZ.jour = await czapi("aujourdhui");
@@ -33,11 +34,11 @@ async function czLoad(){
   if (G.sub === "cz_logements" || G.sub === "cz_proprietaires") CZ.ini = await czapi("init");
 }
 function czView(){
-  const v = {cz_jour:czVJour, cz_logements:czVLogements, cz_reservations:czVRes, cz_missions:czVMis, cz_incidents:czVInc, cz_proprietaires:czVProp, cz_planning:czVPlan, cz_avis:czVAvis, cz_services:czVSrv}[G.sub];
+  const v = {cz_jour:czVJour, cz_logements:czVLogements, cz_reservations:czVRes, cz_missions:czVMis, cz_incidents:czVInc, cz_proprietaires:czVProp, cz_planning:czVPlan, cz_rapports:czVRap, cz_avis:czVAvis, cz_services:czVSrv}[G.sub];
   return v ? v() : "";
 }
 function czBind(){
-  const b = {cz_jour:czBJour, cz_logements:czBLogements, cz_reservations:czBRes, cz_missions:czBMis, cz_incidents:czBInc, cz_proprietaires:czBProp, cz_planning:czBPlan, cz_avis:czBAvis, cz_services:czBSrv}[G.sub];
+  const b = {cz_jour:czBJour, cz_logements:czBLogements, cz_reservations:czBRes, cz_missions:czBMis, cz_incidents:czBInc, cz_proprietaires:czBProp, cz_planning:czBPlan, cz_rapports:czBRap, cz_avis:czBAvis, cz_services:czBSrv}[G.sub];
   if (b) b();
 }
 const czRe = () => go("gestion");
@@ -447,4 +448,51 @@ function czBMessages(r){
     e.target.disabled = false; };
   $("#wbt").oninput = maj;
   $("#wbc").onclick = () => czCopier($("#wbt").value, "Réponse copiée.");
+}
+
+/* ---------- Rapports ---------- */
+const czN = v => v == null ? "–" : (+v).toLocaleString("fr-FR", {maximumFractionDigits:1});
+function czPeriode(k){
+  const d = new Date(), y = d.getFullYear(), m = d.getMonth(), iso = x => czIso(x);
+  if (k === "mois") return [iso(new Date(y, m, 1)), iso(d)];
+  if (k === "mois-1") return [iso(new Date(y, m - 1, 1)), iso(new Date(y, m, 0))];
+  if (k === "trim") { const q = Math.floor(m / 3) * 3; return [iso(new Date(y, q, 1)), iso(d)]; }
+  if (k === "annee") return [iso(new Date(y, 0, 1)), iso(d)];
+  return null;
+}
+function czVRap(){
+  const R = CZ.rap, T = R.total, F = CZ.rapF;
+  const kpi = (v, l, s) => `<div class="card" style="display:grid;gap:2px;padding:14px 16px"><span class="hint">${l}</span><b style="font-size:26px;line-height:1.1">${v}</b>${s ? `<span class="hint">${s}</span>` : ""}</div>`;
+  const head = F.par === "responsable" ? ["Responsable", "Missions", "Faites", "En retard", "Ménages", "Durée moyenne", "Position éloignée", "Propreté", "Avis"]
+    : [F.par === "proprietaire" ? "Propriétaire" : "Logement", "Nuits", "Occupation", "Séjours", "Ménages faits", "Retards", "Propreté", "Séjour", "Incidents", "Dépenses", "Services vendus", "Marge services", "Séjours avec commande"];
+  const row = r => F.par === "responsable" ? [esc(r.nom), r.missions, r.faites, r.retards ? `<b style="color:#8e3b2f">${r.retards}</b>` : 0, r.menages, r.duree_moyenne != null ? r.duree_moyenne + " min" : "–", r.loin || 0, r.proprete != null ? czN(r.proprete) + "/5" : "–", r.avis]
+    : [esc(r.nom) + (r.detail ? `<div class="hint">${esc(r.detail.join(", "))}</div>` : r.proprietaire ? `<div class="hint">${esc(r.proprietaire)}</div>` : ""), r.nuits, r.occupation + " %", r.sejours, `${r.menages_faits}/${r.menages}`, r.retards ? `<b style="color:#8e3b2f">${r.retards}</b>` : 0,
+       r.proprete != null ? czN(r.proprete) + "/5" : "–", r.note_sejour != null ? czN(r.note_sejour) + "/5" : "–", r.incidents_ouverts ? `${r.incidents} (${r.incidents_ouverts} ouvert)` : r.incidents, czDH(r.depenses), czDH(r.ca_services), czDH(r.marge_services), r.taux_commande + " %"];
+  return `<div class="card no-print"><div style="display:flex;gap:10px;flex-wrap:wrap;align-items:end">
+      <label>Période<select id="rp"><option value="">Personnalisée</option><option value="mois">Ce mois</option><option value="mois-1">Mois dernier</option><option value="trim">Ce trimestre</option><option value="annee">Cette année</option></select></label>
+      <label>Du<input type="date" id="rf" value="${F.from}"></label><label>Au<input type="date" id="rt" value="${F.to}"></label>
+      <label>Par<select id="rb"><option value="logement" ${F.par === "logement" ? "selected" : ""}>Logement</option><option value="proprietaire" ${F.par === "proprietaire" ? "selected" : ""}>Propriétaire</option><option value="responsable" ${F.par === "responsable" ? "selected" : ""}>Responsable</option></select></label>
+      <button class="primary" id="rgo">Afficher</button><button class="btn" id="rpr">Imprimer</button><button class="btn ghost" id="rcsv">Exporter (tableur)</button></div></div>
+    <div class="card"><h2 style="margin:0">Rapport du ${esc(czD(R.from))} au ${esc(czD(R.to))}</h2><div class="hint">${R.jours} jours · ${T.logements} logements</div></div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px">
+      ${kpi(czN(T.nuits), "Nuits louées", T.occupation + " % d'occupation")}${kpi(czN(T.sejours), "Séjours", czN(T.voyageurs) + " voyageurs")}
+      ${kpi(`${T.menages_faits}/${T.menages}`, "Ménages faits", T.retards ? T.retards + " intervention(s) en retard" : "aucun retard")}
+      ${kpi(T.proprete != null ? czN(T.proprete) + "/5" : "–", "Propreté notée", T.avis + " avis")}${kpi(czN(T.incidents), "Signalements", czDH(T.depenses) + " de dépenses")}
+      ${kpi(czDH(T.ca_services), "Services vendus", "marge " + czDH(T.marge_services))}${kpi(T.taux_commande + " %", "Séjours avec commande", czN(T.commandes) + " articles")}</div>
+    ${R.alertes.length ? `<div class="card accent"><h3 style="margin:0 0 6px">À regarder</h3><ul style="margin:0">${R.alertes.map(a => `<li>${esc(a)}</li>`).join("")}</ul></div>` : `<div class="card"><span class="pill p-ok">Tout est en ordre sur la période</span></div>`}
+    <div class="card"><h3 style="margin:0 0 8px">Détail par ${F.par === "responsable" ? "responsable" : F.par === "proprietaire" ? "propriétaire" : "logement"}</h3><div class="scroll"><table class="tbl" id="rtab"><thead><tr>${head.map(h => `<th>${h}</th>`).join("")}</tr></thead><tbody>
+      ${R.lignes.map(r => `<tr>${row(r).map(c => `<td>${c}</td>`).join("")}</tr>`).join("") || `<tr><td colspan="${head.length}" class="muted">Rien sur la période.</td></tr>`}</tbody></table></div></div>
+    <div class="card"><h3 style="margin:0 0 8px">Ventes complémentaires</h3>${R.services.length ? `<table class="tbl"><thead><tr><th>Service</th><th>Quantité</th><th>Encaissé</th><th>Marge</th></tr></thead><tbody>${R.services.map(x => `<tr><td>${esc(x.nom)}</td><td>${x.quantite}</td><td>${czDH(x.ca)}</td><td>${czDH(x.marge)}</td></tr>`).join("")}</tbody></table>` : `<div class="muted">Aucune vente sur la période. Pensez à proposer l'eau, les fruits et le transfert dans le livret.</div>`}</div>
+    <style>@media print{.no-print,.top,nav,.tabs,.secs,.demo-ruban{display:none!important}.card{break-inside:avoid}}</style>`;
+}
+function czBRap(){
+  $("#rp").onchange = () => { const p = czPeriode($("#rp").value); if (p) { $("#rf").value = p[0]; $("#rt").value = p[1]; } };
+  $("#rgo").onclick = () => { CZ.rapF = {from:$("#rf").value, to:$("#rt").value, par:$("#rb").value}; czRe(); };
+  $("#rb").onchange = $("#rgo").onclick;
+  $("#rpr").onclick = () => window.print();
+  $("#rcsv").onclick = () => {
+    const rows = [...document.querySelectorAll("#rtab tr")].map(tr => [...tr.children].map(td => '"' + td.innerText.replace(/\n/g, " ").replace(/"/g, '""') + '"').join(";"));
+    const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob(["﻿" + rows.join("\r\n")], {type:"text/csv;charset=utf-8"}));
+    a.download = `keylia-rapport-${CZ.rapF.par}-${CZ.rapF.from}-${CZ.rapF.to}.csv`; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  };
 }

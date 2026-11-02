@@ -125,4 +125,15 @@ reglage_set('cz_ia', '0'); t('assistant coupé dans les réglages', cz_brouillon
 unset($GLOBALS['CZ_IA_APPEL']);
 try { cz_question_voyageur($ra, '  '); t('question vide refusée', false); } catch (InvalidArgumentException $e) { t('question vide refusée', $e->getMessage() === 'champ:question'); }
 
+echo "Rapports\n";
+$R = cz_rapport(date('Y-m-d', strtotime('-30 days')), date('Y-m-d', strtotime('+30 days')), 'logement');
+$lu = array_values(array_filter($R['lignes'], fn($l) => $l['id'] === $lid))[0] ?? [];
+t('rapport : nuits et séjours du logement', ($lu['nuits'] ?? 0) > 0 && ($lu['sejours'] ?? 0) > 0, json_encode($lu));
+t('rapport : ventes complémentaires et marge', ($lu['ca_services'] ?? 0) == 180.0 && ($lu['marge_services'] ?? 0) == 105.0, json_encode($lu));
+t('rapport : propreté notée reprise', ($lu['proprete'] ?? null) == 2.0);
+t('rapport : point d\'attention sur la propreté', (bool)array_filter($R['alertes'], fn($a) => str_contains($a, 'propreté')), json_encode($R['alertes']));
+t('rapport : services classés par marge', ($R['services'][0]['nom'] ?? '') === 'Eau');
+$Rp = cz_rapport(date('Y-m-d', strtotime('-30 days')), date('Y-m-d', strtotime('+30 days')), 'proprietaire'); t('rapport par propriétaire : totaux identiques', array_sum(array_column($Rp['lignes'], 'nuits')) == $R['total']['nuits']);
+$Rr = cz_rapport(date('Y-m-d', strtotime('-30 days')), date('Y-m-d', strtotime('+30 days')), 'responsable'); t('rapport par responsable : missions comptées', array_sum(array_column($Rr['lignes'], 'missions')) > 0, json_encode($Rr['lignes']));
+
 echo "\n$ok réussis, $ko en échec\n"; exit($ko ? 1 : 0);

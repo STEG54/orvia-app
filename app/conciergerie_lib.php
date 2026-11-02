@@ -543,3 +543,69 @@ function cz_brouillon_whatsapp(array $r, string $recu): ?array {
   if (!cz_ia_active()) return null;
   return cz_ia_lire(cz_ia_appel(cz_ia_systeme($r, 'gestionnaire'), [['role' => 'user', 'content' => $recu]]));
 }
+
+/* ---------- Rapports : par période, par propriétaire, par logement, par responsable ---------- */
+/** Indicateurs de chaque logement sur [$from, $to] (dates incluses). */
+function cz_rapport_logements(string $from, string $to): array {
+  $auj = date('Y-m-d'); $finExcl = date('Y-m-d', strtotime($to . ' +1 day')); $jours = max(1, (int)round((strtotime($finExcl) - strtotime($from)) / 86400));
+  $L = []; foreach (db()->query("SELECT l.id, l.nom, l.ville, l.proprietaire_id, p.nom proprietaire FROM c_logements l LEFT JOIN c_proprietaires p ON p.id = l.proprietaire_id WHERE l.actif = 1 ORDER BY l.nom")->fetchAll() as $l)
+    $L[(int)$l['id']] = $l + ['nuits' => 0, 'sejours' => 0, 'voyageurs' => 0, 'occupation' => 0, 'menages' => 0, 'menages_faits' => 0, 'retards' => 0, 'interventions' => 0,
+      'avis' => 0, 'proprete' => null, 'note_sejour' => null, 'incidents' => 0, 'incidents_ouverts' => 0, 'depenses' => 0.0, 'ca_services' => 0.0, 'marge_services' => 0.0, 'commandes' => 0, 'sejours_avec_commande' => 0];
+  $st = db()->prepare("SELECT logement_id, arrivee, depart, nb_voyageurs FROM c_reservations WHERE statut = 'confirmee' AND arrivee < ? AND depart > ?"); $st->execute([$finExcl, $from]);
+  foreach ($st->fetchAll() as $r) { $i = (int)$r['logement_id']; if (!isset($L[$i])) continue;
+    $n = (int)round((strtotime(min($r['depart'], $finExcl)) - strtotime(max($r['arrivee'], $from))) / 86400); $L[$i]['nuits'] += max(0, $n);
+    if ($r['arrivee'] >= $from && $r['arrivee'] <= $to) { $L[$i]['sejours']++; $L[$i]['voyageurs'] += (int)$r['nb_voyageurs']; } }
+  $st = db()->prepare("SELECT logement_id, type, statut, date FROM c_missions WHERE date BETWEEN ? AND ?"); $st->execute([$from, $to]);
+  foreach ($st->fetchAll() as $m) { $i = (int)$m['logement_id']; if (!isset($L[$i])) continue; $L[$i]['interventions']++;
+    if ($m['type'] === 'menage') { $L[$i]['menages']++; if ($m['statut'] === 'faite') $L[$i]['menages_faits']++; }
+    if ($m['statut'] !== 'faite' && $m['date'] < $auj) $L[$i]['retards']++; }
+  $st = db()->prepare("SELECT logement_id, AVG(proprete) p, AVG((COALESCE(logement, accueil) + COALESCE(accueil, logement)) / 2) s, COUNT(*) n FROM c_avis WHERE DATE(created_at) BETWEEN ? AND ? GROUP BY logement_id"); $st->execute([$from, $to]);
+  foreach ($st->fetchAll() as $a) { $i = (int)$a['logement_id']; if (!isset($L[$i])) continue; $L[$i]['avis'] = (int)$a['n'];
+    $L[$i]['proprete'] = $a['p'] !== null ? round((float)$a['p'], 1) : null; $L[$i]['note_sejour'] = $a['s'] !== null ? round((float)$a['s'], 1) : null; }
+  $st = db()->prepare("SELECT logement_id, statut, cout FROM c_incidents WHERE DATE(created_at) BETWEEN ? AND ?"); $st->execute([$from, $to]);
+  foreach ($st->fetchAll() as $x) { $i = (int)$x['logement_id']; if (!isset($L[$i])) continue; $L[$i]['incidents']++; if ($x['statut'] === 'ouvert') $L[$i]['incidents_ouverts']++; $L[$i]['depenses'] += (float)$x['cout']; }
+  $st = db()->prepare("SELECT r.logement_id, c.reservation_id, SUM(c.quantite * c.prix) ca, SUM(c.quantite * (c.prix - c.cout)) mg, SUM(c.quantite) q FROM c_commandes c JOIN c_reservations r ON r.id = c.reservation_id WHERE c.statut <> 'annulee' AND DATE(c.created_at) BETWEEN ? AND ? GROUP BY r.logement_id, c.reservation_id"); $st->execute([$from, $to]);
+  foreach ($st->fetchAll() as $c) { $i = (int)$c['logement_id']; if (!isset($L[$i])) continue; $L[$i]['ca_services'] += (float)$c['ca']; $L[$i]['marge_services'] += (float)$c['mg']; $L[$i]['commandes'] += (int)$c['q']; $L[$i]['sejours_avec_commande']++; }
+  foreach ($L as &$l) { $l['occupation'] = (int)round(100 * $l['nuits'] / $jours); $l['depenses'] = round($l['depenses'], 2); $l['ca_services'] = round($l['ca_services'], 2); $l['marge_services'] = round($l['marge_services'], 2); }
+  return array_values($L);
+}
+/** Regroupe des lignes : sommes, moyennes pondérées des notes, taux recalculés. */
+function cz_rapport_cumul(array $rows, string $nom, int $jours): array {
+  $o = ['nom' => $nom, 'logements' => count($rows)]; $somme = ['nuits', 'sejours', 'voyageurs', 'menages', 'menages_faits', 'retards', 'interventions', 'avis', 'incidents', 'incidents_ouverts', 'depenses', 'ca_services', 'marge_services', 'commandes', 'sejours_avec_commande'];
+  foreach ($somme as $k) $o[$k] = round(array_sum(array_column($rows, $k)), 2);
+  foreach (['proprete', 'note_sejour'] as $k) { $w = 0; $t = 0; foreach ($rows as $r) if ($r[$k] !== null) { $t += $r[$k] * $r['avis']; $w += $r['avis']; } $o[$k] = $w ? round($t / $w, 1) : null; }
+  $o['occupation'] = $rows ? (int)round(100 * $o['nuits'] / ($jours * count($rows))) : 0;
+  $o['taux_commande'] = $o['sejours'] ? (int)round(100 * $o['sejours_avec_commande'] / $o['sejours']) : 0;
+  return $o;
+}
+/** Rapport complet. $par : logement, proprietaire ou responsable. */
+function cz_rapport(string $from, string $to, string $par): array {
+  $jours = max(1, (int)round((strtotime($to . ' +1 day') - strtotime($from)) / 86400)); $L = cz_rapport_logements($from, $to);
+  $total = cz_rapport_cumul($L, 'Ensemble', $jours); $lignes = [];
+  if ($par === 'proprietaire') { $g = []; foreach ($L as $l) $g[$l['proprietaire'] ?: 'Sans propriétaire'][] = $l; ksort($g); foreach ($g as $n => $rows) $lignes[] = cz_rapport_cumul($rows, $n, $jours) + ['detail' => array_column($rows, 'nom')]; }
+  elseif ($par === 'responsable') {
+    // Le travail de chaque intervenant ou gestionnaire : missions, retards, durée sur place, propreté notée par les voyageurs.
+    $st = db()->prepare("SELECT COALESCE(CONCAT(a.prenom, ' ', a.nom), d.nom, 'Non attribuées') nom, m.type, m.statut, m.date, m.debut_at, m.fin_at, m.debut_dist FROM c_missions m LEFT JOIN animatrices a ON a.id = m.animatrice_id LEFT JOIN admins d ON d.id = m.admin_id WHERE m.date BETWEEN ? AND ?");
+    $st->execute([$from, $to]); $g = [];
+    foreach ($st->fetchAll() as $m) { $k = $m['nom']; $g[$k] = $g[$k] ?? ['nom' => $k, 'missions' => 0, 'faites' => 0, 'retards' => 0, 'menages' => 0, 'minutes' => 0, 'mesures' => 0, 'loin' => 0, 'avis' => 0, 'proprete' => null];
+      $g[$k]['missions']++; if ($m['statut'] === 'faite') $g[$k]['faites']++; if ($m['statut'] !== 'faite' && $m['date'] < date('Y-m-d')) $g[$k]['retards']++; if ($m['type'] === 'menage') $g[$k]['menages']++;
+      if ($m['debut_at'] && $m['fin_at']) { $g[$k]['minutes'] += (int)round((strtotime($m['fin_at']) - strtotime($m['debut_at'])) / 60); $g[$k]['mesures']++; }
+      if ($m['debut_dist'] !== null && (int)$m['debut_dist'] > 150) $g[$k]['loin']++; }
+    $st = db()->prepare("SELECT CONCAT(a.prenom, ' ', a.nom) nom, AVG(v.proprete) p, COUNT(v.proprete) n FROM c_avis v JOIN animatrices a ON a.id = v.animatrice_id WHERE DATE(v.created_at) BETWEEN ? AND ? GROUP BY v.animatrice_id"); $st->execute([$from, $to]);
+    foreach ($st->fetchAll() as $a) if (isset($g[$a['nom']])) { $g[$a['nom']]['avis'] = (int)$a['n']; $g[$a['nom']]['proprete'] = $a['p'] !== null ? round((float)$a['p'], 1) : null; }
+    foreach ($g as &$x) { $x['duree_moyenne'] = $x['mesures'] ? (int)round($x['minutes'] / $x['mesures']) : null; unset($x['minutes'], $x['mesures']); } unset($x);
+    $lignes = array_values($g); usort($lignes, fn($a, $b) => strcmp($a['nom'], $b['nom']));
+  }
+  else $lignes = array_map(fn($l) => $l + ['taux_commande' => $l['sejours'] ? (int)round(100 * $l['sejours_avec_commande'] / $l['sejours']) : 0], $L);
+  // Les services qui se vendent le mieux sur la période.
+  $st = db()->prepare("SELECT s.nom, SUM(c.quantite) q, SUM(c.quantite * c.prix) ca, SUM(c.quantite * (c.prix - c.cout)) mg FROM c_commandes c JOIN c_services s ON s.id = c.service_id WHERE c.statut <> 'annulee' AND DATE(c.created_at) BETWEEN ? AND ? GROUP BY s.id ORDER BY mg DESC"); $st->execute([$from, $to]);
+  // Points d'attention : ce qui demande une action.
+  $alertes = [];
+  foreach ($L as $l) {
+    if ($l['retards']) $alertes[] = $l['nom'] . ' : ' . $l['retards'] . ' intervention(s) en retard';
+    if ($l['proprete'] !== null && $l['proprete'] < 4) $alertes[] = $l['nom'] . ' : propreté notée ' . $l['proprete'] . '/5 par les voyageurs';
+    if ($l['incidents_ouverts']) $alertes[] = $l['nom'] . ' : ' . $l['incidents_ouverts'] . ' signalement(s) encore ouvert(s)';
+    if ($l['sejours'] >= 3 && !$l['commandes']) $alertes[] = $l['nom'] . ' : aucun service vendu sur ' . $l['sejours'] . ' séjours';
+  }
+  return ['from' => $from, 'to' => $to, 'jours' => $jours, 'par' => $par, 'total' => $total, 'lignes' => $lignes, 'services' => array_map(fn($s) => ['nom' => $s['nom'], 'quantite' => (int)$s['q'], 'ca' => round((float)$s['ca'], 2), 'marge' => round((float)$s['mg'], 2)], $st->fetchAll()), 'alertes' => $alertes];
+}
