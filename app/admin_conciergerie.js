@@ -212,9 +212,10 @@ function czBMisDet(){
 
 /* ---------- Logements ---------- */
 function czVLogements(){
+  if (CZ.wiz) return czVWiz();
   if (CZ.ed) return czVLogEd();
   const P = Object.fromEntries(CZ.ini.proprietaires.map(p => [p.id, p.nom])), R = CZ.ini.reglages;
-  return `<div class="card"><div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap"><h2>Logements</h2>${CZ.ini.gerer ? `<button class="primary" id="lnew">Nouveau logement</button>` : ""}</div>
+  return `<div class="card"><div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap"><h2>Logements</h2>${CZ.ini.gerer ? `<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn ghost" id="lnewf">Formulaire complet</button><button class="primary" id="lnew">Nouveau logement</button></div>` : ""}</div>
     ${CZ.ini.logements.length ? `<div class="scroll"><table class="tbl"><thead><tr><th>Logement</th><th>Ville</th><th>Propriétaire</th><th>Calendriers</th><th></th></tr></thead><tbody>
     ${CZ.ini.logements.map(l => `<tr${l.actif ? "" : ` style="opacity:.55"`}><td>${esc(l.nom)}</td><td>${esc(l.ville)}</td><td>${esc(P[l.proprietaire_id] || "")}</td><td>${l.ical.length}${l.ical_maj ? `<div class="hint">synchronisé ${esc(czD(l.ical_maj))}</div>` : ""}</td>
       <td style="white-space:nowrap">${CZ.ini.gerer ? `<button class="btn" data-led="${l.id}">Modifier</button> ${l.ical.length ? `<button class="btn ghost" data-sync="${l.id}">Synchroniser</button>` : ""}` : ""}</td></tr>`).join("")}</tbody></table></div>` : `<div class="muted">Ajoutez votre premier logement : adresse, accès, check-list du ménage et liens des calendriers Airbnb ou Booking.</div>`}</div>
@@ -226,8 +227,10 @@ function czVLogements(){
       <label>Heure habituelle du ménage<input type="time" id="rch" value="${esc(R.cz_heure_menage)}"></label><button class="btn" id="rsave">Enregistrer les réglages</button></div>` : ""}`;
 }
 function czBLogements(){
+  if (CZ.wiz) return czBWiz();
   if (CZ.ed) return czBLogEd();
-  if ($("#lnew")) $("#lnew").onclick = () => { CZ.ed = {id:0, nom:"", ville:"", adresse:"", proprietaire_id:null, agent_id:null, acces:"", code:"", kit_linge:"", duree_menage:120, ical:[], notes:"", actif:1, checklist:[{piece:"Chambre",photos:2},{piece:"Salle de bain",photos:2},{piece:"Cuisine",photos:2},{piece:"Salon",photos:2}]}; czRe(); };
+  if ($("#lnew")) $("#lnew").onclick = () => { CZ.wiz = {etape:1, d:{ville:"Marrakech", type:"Appartement 2 chambres", entretiens:true}}; czRe(); };
+  if ($("#lnewf")) $("#lnewf").onclick = () => { CZ.ed = {id:0, nom:"", ville:"", adresse:"", proprietaire_id:null, agent_id:null, acces:"", code:"", kit_linge:"", duree_menage:120, ical:[], notes:"", actif:1, checklist:[{piece:"Chambre",photos:2},{piece:"Salle de bain",photos:2},{piece:"Cuisine",photos:2},{piece:"Salon",photos:2}]}; czRe(); };
   document.querySelectorAll("[data-led]").forEach(b => b.onclick = async () => { try { CZ.ed = (await czapi("logement_get", null, "id=" + b.dataset.led)).logement; czRe(); } catch(e) { toast(e.message); } });
   document.querySelectorAll("[data-sync]").forEach(b => b.onclick = async () => { b.disabled = true; try { const r = await czapi("logement_sync", {id:+b.dataset.sync}); toast(`${r.ajoutees} nouvelle(s), ${r.modifiees} modifiée(s), ${r.annulees} annulée(s).`); CZ.ini = null; czRe(); } catch(e) { toast(e.message); b.disabled = false; } });
   if ($("#rsave")) $("#rsave").onclick = async () => { try { await czapi("reglages_save", {cz_conservation_jours:+$("#rcj").value, cz_copie_piece:$("#rcp").checked, cz_code_auto:$("#rca").checked, cz_heure_menage:$("#rch").value, cz_ia:$("#ria").checked}); CZ.ini = null; toast("Réglages enregistrés."); } catch(e) { toast(e.message); } };
@@ -791,4 +794,65 @@ function czEntSuggestions(){
   CZ.ini.logements.filter(l => l.actif).forEach(l => { const P = (l.checklist || []).map(p => String(p.piece).toLowerCase());
     CZ_ENT_SUGG.forEach(([t, f, ok]) => { if (ok(P) && !fait.has(l.id + "|" + t)) out.push({logement_id:l.id, logement:l.nom, titre:t, frequence_jours:f}); }); });
   return out;
+}
+
+/* ---------- Nouveau logement en trois écrans ---------- */
+const CZ_VILLES = ["Marrakech", "Casablanca", "Rabat", "Tanger", "Agadir", "Essaouira", "Fès"];
+const CZ_TYPES_ICO = {"Studio":"1 pièce, salle d'eau, coin cuisine", "Appartement 2 chambres":"2 chambres, salon, cuisine, salle de bain", "Villa avec piscine":"Chambres, salons, jardin et piscine", "Riad":"Chambres autour du patio, terrasse"};
+function czVWiz(){
+  const W = CZ.wiz, d = W.d, P = CZ.ini.proprietaires.filter(p => +p.actif !== 0), et = ["Le logement", "Son type", "L'accès"];
+  const pas = `<div class="wz-pas">${et.map((t, i) => `<span class="${i + 1 === W.etape ? "on" : i + 1 < W.etape ? "ok" : ""}"><b>${i + 1 < W.etape ? "✓" : i + 1}</b>${t}</span>`).join("")}</div>`;
+  let corps = "";
+  if (W.etape === 1) corps = `<label>Nom du logement<input id="wn" value="${esc(d.nom || "")}" placeholder="Villa des Oliviers" autofocus></label>
+    <div class="row3"><label>Ville<input id="wv" list="wvl" value="${esc(d.ville || "")}"><datalist id="wvl">${CZ_VILLES.map(v => `<option value="${v}">`).join("")}</datalist></label><label style="grid-column:span 2">Adresse ou quartier<input id="wa" value="${esc(d.adresse || "")}" placeholder="Route de l'Ourika, km 7"></label></div>
+    <div class="row3"><label>Propriétaire<select id="wp"><option value="">Choisir…</option>${P.map(p => `<option value="${p.id}" ${+d.proprietaire_id === +p.id ? "selected" : ""}>${esc(p.nom)}</option>`).join("")}<option value="nouveau" ${d.proprietaire_id === "nouveau" ? "selected" : ""}>+ Nouveau propriétaire</option></select></label>
+      <label id="wpnl" style="grid-column:span 2" ${d.proprietaire_id === "nouveau" ? "" : "hidden"}>Nom du nouveau propriétaire<input id="wpn" value="${esc(d.prop_nom || "")}" placeholder="M. et Mme Alami"></label></div>
+    <label>Lien du calendrier Airbnb ou Booking <span class="hint">· facultatif, les réservations arriveront seules</span><input id="wi" value="${esc(d.ical || "")}" placeholder="https://www.airbnb.fr/calendar/ical/…"></label>`;
+  if (W.etape === 2) corps = `<div class="wz-types">${Object.keys(CZ_MODELES_LOG).map(t => `<button type="button" class="wz-type ${d.type === t ? "on" : ""}" data-wt="${esc(t)}"><b>${esc(t)}</b><span>${esc(CZ_TYPES_ICO[t])}</span><small>${CZ_MODELES_LOG[t].length} pièces à photographier</small></button>`).join("")}</div>
+    <div class="hint">Keylia prépare la check-list du ménage, le kit de linge et les entretiens conseillés. Tout se modifie ensuite.</div>
+    <label style="display:flex;gap:10px;align-items:center;font-weight:400"><input type="checkbox" id="we" style="width:auto" ${d.entretiens ? "checked" : ""}> Programmer les entretiens conseillés (climatisation, désinsectisation, chauffe-eau, extincteur${/piscine/i.test(d.type) ? ", piscine" : ""})</label>`;
+  if (W.etape === 3) corps = `<div class="row3"><label>Code de la boîte à clés <span class="hint">· chiffré</span><input id="wc" value="${esc(d.code || "")}" autocomplete="off"></label><label>Wi-Fi : nom du réseau<input id="wwn" value="${esc(d.wifi_nom || "")}"></label><label>Wi-Fi : mot de passe<input id="wwm" value="${esc(d.wifi_mdp || "")}" autocomplete="off"></label></div>
+    <label>Position exacte <span class="hint">· collez le lien Google Maps du logement, ou des coordonnées</span><input id="wpos" value="${esc(d.position || "")}" placeholder="https://www.google.com/maps/place/…"></label>
+    <label>Repère pour trouver la porte<input id="wr" value="${esc(d.repere || "")}" placeholder="Portail blanc après la pharmacie, deuxième ruelle à gauche"></label>
+    <div class="hint">Les photos du chemin s'ajoutent ensuite dans la fiche du logement, ou depuis le téléphone sur place.</div>`;
+  if (W.etape === 4) return `<div class="card wz"><div class="wz-ok">✓</div><h2 style="margin:0">${esc(d.nom)} est prêt.</h2>
+    <div class="muted">${W.bilan.map(esc).join(" · ")}</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px"><button class="primary" data-wfin="fiche">Ajouter les photos du chemin</button><button class="btn" data-wfin="autre">Créer un autre logement</button><button class="btn ghost" data-wfin="liste">Voir mes logements</button></div></div>`;
+  return `<div class="card wz"><div style="display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap"><h2 style="margin:0">Nouveau logement</h2><button class="btn ghost" id="wx">Annuler</button></div>${pas}
+    <div class="wz-c">${corps}</div><div style="display:flex;gap:8px;justify-content:space-between;margin-top:6px">${W.etape > 1 ? `<button class="btn ghost" id="wprev">‹ Retour</button>` : "<span></span>"}<button class="primary" id="wnext">${W.etape === 3 ? "Créer le logement" : "Continuer ›"}</button></div></div>`;
+}
+function czBWiz(){
+  const W = CZ.wiz, d = W.d;
+  const lire = () => { const v = id => ($(id) || {}).value;
+    if (W.etape === 1) Object.assign(d, {nom:v("#wn").trim(), ville:v("#wv").trim(), adresse:v("#wa").trim(), proprietaire_id:v("#wp"), prop_nom:(v("#wpn") || "").trim(), ical:v("#wi").trim()});
+    if (W.etape === 2) d.entretiens = $("#we").checked;
+    if (W.etape === 3) Object.assign(d, {code:v("#wc"), wifi_nom:v("#wwn"), wifi_mdp:v("#wwm"), position:v("#wpos").trim(), repere:v("#wr")}); };
+  if ($("#wx")) $("#wx").onclick = () => { CZ.wiz = null; czRe(); };
+  if ($("#wp")) $("#wp").onchange = () => { $("#wpnl").hidden = $("#wp").value !== "nouveau"; if (!$("#wpnl").hidden) $("#wpn").focus(); };
+  document.querySelectorAll("[data-wt]").forEach(b => b.onclick = () => { lire(); d.type = b.dataset.wt; czRe(); });
+  if ($("#wprev")) $("#wprev").onclick = () => { lire(); W.etape--; czRe(); };
+  if ($("#wnext")) $("#wnext").onclick = async () => { lire();
+    if (W.etape === 1) { if (!d.nom) return toast("Donnez un nom au logement."); if (!d.ville) return toast("Indiquez la ville."); if (d.proprietaire_id === "nouveau" && !d.prop_nom) return toast("Indiquez le nom du propriétaire."); W.etape = 2; return czRe(); }
+    if (W.etape === 2) { W.etape = 3; return czRe(); }
+    const b = $("#wnext"); b.disabled = true; b.textContent = "Création…"; const bilan = [];
+    try {
+      let pid = +d.proprietaire_id || 0;
+      if (d.proprietaire_id === "nouveau") { pid = (await czapi("proprietaire_save", {id:0, nom:d.prop_nom, email:"", telephone:"", plafond:0, actif:true})).id; d.proprietaire_id = String(pid); bilan.push("propriétaire créé"); }
+      const chk = CZ_MODELES_LOG[d.type].map(([piece, photos, consignes]) => ({piece, photos, consignes:consignes || ""}));
+      const r = await czapi("logement_save", {id:0, nom:d.nom, ville:d.ville, adresse:d.adresse, proprietaire_id:pid, agent_id:0, kit_linge:"", duree_menage:/Villa/.test(d.type) ? 240 : /Riad/.test(d.type) ? 180 : /Studio/.test(d.type) ? 75 : 120,
+        acces:"", code:d.code, position:d.position, livret:{repere:d.repere, parking:"", serrure:d.code ? "Boîte à clés : composer le code, puis refermer et brouiller les chiffres" : "", wifi_nom:d.wifi_nom, wifi_mdp:d.wifi_mdp, urgence:"", depart:"Remettre les clés à leur place, éteindre la climatisation, fermer les fenêtres", etapes:[]},
+        ical:d.ical, checklist:chk, notes:"", actif:true});
+      const lid = r.id; bilan.push(chk.length + " pièces à photographier"); if (Array.isArray(r.sync)) bilan.push(r.sync[0] + " réservation(s) importée(s)"); else if (d.ical) bilan.push("calendrier relié");
+      const I = await czapi("intendance"), ids = Object.fromEntries(I.linge.articles.map(a => [a.nom, a.id]));
+      if (I.linge.articles.length) { const k = czKitPropose({checklist:chk}), kit = {}; for (const [n, q] of Object.entries(k)) if (ids[n]) kit[ids[n]] = q; await czapi("linge_kit_save", {logement_id:lid, kit}); bilan.push("kit de linge proposé"); }
+      if (d.entretiens) { const P = chk.map(c => c.piece.toLowerCase()), S = CZ_ENT_SUGG.filter(([, , ok]) => ok(P));
+        for (const [i, [titre, f]] of S.entries()) await czapi("entretien_save", {logement_id:lid, titre, frequence_jours:f, prochaine:czIso(new Date(Date.now() + (14 + i * 7) * 864e5)), heure:"10:00"}); bilan.push(S.length + " entretiens programmés"); }
+      if (d.code) bilan.push("code chiffré"); if (d.position) bilan.push("position enregistrée");
+      W.etape = 4; W.bilan = bilan; W.lid = lid; CZ.ini = null; czRe();
+    } catch(e) { toast(e.message); b.disabled = false; b.textContent = "Créer le logement"; }
+  };
+  document.querySelectorAll("[data-wfin]").forEach(b => b.onclick = async () => { const k = b.dataset.wfin, lid = W.lid; CZ.wiz = null;
+    if (k === "autre") CZ.wiz = {etape:1, d:{ville:d.ville, type:d.type, entretiens:true}};
+    if (k === "fiche") { try { CZ.ini = await czapi("init"); const l = CZ.ini.logements.find(x => +x.id === +lid); if (l) CZ.ed = Object.assign({}, (await czapi("logement_get", null, "id=" + lid)).logement); } catch(e) { toast(e.message); } }
+    czRe(); });
 }
