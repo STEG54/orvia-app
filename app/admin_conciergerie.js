@@ -1,6 +1,6 @@
 // ORVIA : administration de la conciergerie (Aujourd'hui, Logements, Réservations, Missions, Signalements, Propriétaires).
 const CZ = { ini:null, jour:null, logs:null, ed:null, res:null, resF:{ from:"", to:"", logement:"" }, det:null, mis:null, misF:{ from:"", to:"" }, mdet:null, inc:null, incS:"ouvert", prop:null, lien:null, decl:null, rap:null, rapF:null, plan:null, planD:"", avis:null, srv:null, srvEd:null };
-const CZ_SUBS = [["cz_jour","Aujourd'hui"],["cz_planning","Planning"],["cz_reservations","Réservations"],["cz_missions","Missions"],["cz_logements","Logements"],["cz_incidents","Signalements"],["cz_proprietaires","Propriétaires"],["cz_rapports","Rapports"],["cz_avis","Avis"],["cz_services","Services"],["cz_equipe","Équipe"]];
+const CZ_SUBS = [["cz_jour","Aujourd'hui"],["cz_planning","Planning"],["cz_reservations","Réservations"],["cz_missions","Missions"],["cz_logements","Logements"],["cz_incidents","Signalements"],["cz_proprietaires","Propriétaires"],["cz_rapports","Rapports"],["cz_taxe","Taxe de séjour"],["cz_avis","Avis"],["cz_services","Services"],["cz_equipe","Équipe"]];
 async function czapi(action, body, query){
   const url = "conciergerie_api.php?action=" + action + (query ? "&" + query : "");
   const r = await fetch(url, body ? {method:"POST", credentials:"same-origin", headers:{"Content-Type":"application/json","X-Requested-With":"amaya"}, body:JSON.stringify(body)} : {credentials:"same-origin"});
@@ -28,6 +28,7 @@ async function czLoad(){
   if (G.sub === "cz_avis") CZ.avis = await czapi("avis");
   if (G.sub === "cz_services") CZ.srv = await czapi("services");
   if (G.sub === "cz_equipe") CZ.eq = await czapi("equipe");
+  if (G.sub === "cz_taxe") { if (!CZ.tsM) { const d = new Date(); d.setDate(0); CZ.tsM = czIso(d).slice(0, 7); } const [y, m] = CZ.tsM.split("-").map(Number); CZ.ts = await czapi("taxe_sejour", null, `from=${CZ.tsM}-01&to=${czIso(new Date(y, m, 0))}`); }
   if (G.sub === "cz_jour") CZ.jour = await czapi("aujourdhui");
   if (G.sub === "cz_reservations") CZ.res = (await czapi("reservations", null, `from=${CZ.resF.from}&to=${CZ.resF.to}&logement=${CZ.resF.logement}`)).reservations;
   if (G.sub === "cz_missions") CZ.mis = (await czapi("missions", null, `from=${CZ.misF.from}&to=${CZ.misF.to}`)).missions;
@@ -35,11 +36,11 @@ async function czLoad(){
   if (G.sub === "cz_logements" || G.sub === "cz_proprietaires") CZ.ini = await czapi("init");
 }
 function czView(){
-  const v = {cz_jour:czVJour, cz_logements:czVLogements, cz_reservations:czVRes, cz_missions:czVMis, cz_incidents:czVInc, cz_proprietaires:czVProp, cz_planning:czVPlan, cz_rapports:czVRap, cz_avis:czVAvis, cz_services:czVSrv, cz_equipe:czVEq}[G.sub];
+  const v = {cz_jour:czVJour, cz_logements:czVLogements, cz_reservations:czVRes, cz_missions:czVMis, cz_incidents:czVInc, cz_proprietaires:czVProp, cz_planning:czVPlan, cz_rapports:czVRap, cz_avis:czVAvis, cz_services:czVSrv, cz_equipe:czVEq, cz_taxe:czVTs}[G.sub];
   return v ? v() : "";
 }
 function czBind(){
-  const b = {cz_jour:czBJour, cz_logements:czBLogements, cz_reservations:czBRes, cz_missions:czBMis, cz_incidents:czBInc, cz_proprietaires:czBProp, cz_planning:czBPlan, cz_rapports:czBRap, cz_avis:czBAvis, cz_services:czBSrv, cz_equipe:czBEq}[G.sub];
+  const b = {cz_jour:czBJour, cz_logements:czBLogements, cz_reservations:czBRes, cz_missions:czBMis, cz_incidents:czBInc, cz_proprietaires:czBProp, cz_planning:czBPlan, cz_rapports:czBRap, cz_avis:czBAvis, cz_services:czBSrv, cz_equipe:czBEq, cz_taxe:czBTs}[G.sub];
   if (b) b();
 }
 const czRe = () => go("gestion");
@@ -544,4 +545,47 @@ function czBEq(){
     CZ.eqEd = null; CZ.ini = null; toast("Équipe mise à jour."); czRe(); } catch(e) { toast(e.message); } };
   $("#qcl").onclick = () => czCopier(E.lien, "Lien copié.");
   if ($("#qcs")) $("#qcs").onclick = async () => { try { await api("save_code", {code:$("#qc").value}); toast("Code changé."); czRe(); } catch(e) { toast(e.message); } };
+}
+
+/* ---------- Taxe de séjour ---------- */
+function czVTs(){
+  const T = CZ.ts, R = T.reglages, g = CZ.ini.gerer, src = CZ.ini.sources || {};
+  const mois = new Date(CZ.tsM + "-15").toLocaleDateString("fr-FR", {month:"long", year:"numeric"});
+  const reg = g ? `<details class="card" ${T.sans_tarif.length ? "open" : ""}><summary><b>Tarifs de vos communes</b>${T.sans_tarif.length ? ` <span class="pill p-todo">${T.sans_tarif.length} à renseigner</span>` : ""}</summary>
+      <div class="muted" style="margin:8px 0">Chaque commune fixe son tarif par nuit et par personne, ses exonérations et la fréquence du reversement. Reprenez ceux de l'arrêté de votre commune : Keylia ne fixe aucun montant.</div>
+      <table class="tbl"><thead><tr><th>Commune</th><th>Tarif (DH par nuit et par personne)</th><th>Exonérés : moins de (ans)</th></tr></thead><tbody>
+      ${Object.entries(R.communes).map(([v, c]) => `<tr><td>${esc(v)}</td><td><input data-tst="${esc(v)}" inputmode="decimal" value="${c.tarif || ""}" style="max-width:120px"></td><td><input data-tsa="${esc(v)}" type="number" min="0" max="25" value="${c.age || ""}" placeholder="aucune" style="max-width:120px"></td></tr>`).join("") || `<tr><td colspan="3" class="muted">Ajoutez d'abord vos logements avec leur ville.</td></tr>`}</tbody></table>
+      <div style="margin-top:10px"><b>Plateformes qui collectent et reversent elles-mêmes la taxe</b><div class="hint">Cochez-les seulement si la plateforme le fait pour vos logements : ces séjours sont alors comptés à part, sans montant à reverser.</div>
+      <div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:6px">${Object.entries(src).filter(([k]) => k !== "direct").map(([k, l]) => `<label class="chk"><input type="checkbox" data-tsp="${k}" ${R.plateformes.includes(k) ? "checked" : ""}> ${esc(l)}</label>`).join("")}</div></div>
+      <div style="margin-top:12px"><button class="primary" id="tss">Enregistrer les tarifs</button></div></details>` : "";
+  return `<div class="card no-print"><div style="display:flex;gap:10px;flex-wrap:wrap;align-items:end"><label>Mois<input type="month" id="tsm" value="${CZ.tsM}"></label>
+      <button class="btn" id="tspr">Imprimer l'état</button><button class="btn ghost" id="tscsv">Exporter (tableur)</button></div></div>
+    <div class="no-print">${reg}</div>
+    <div class="card"><h2 style="margin:0">Taxe de séjour · ${esc(mois)}</h2><div class="hint">${esc(T.agence || "")} · état préparé par Keylia d'après les séjours enregistrés</div></div>
+    ${T.sans_tarif.length ? `<div class="card accent no-print">Tarif non renseigné pour ${T.sans_tarif.map(esc).join(", ")} : les montants de ces communes sont à zéro.</div>` : ""}
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px">
+      <div class="card" style="display:grid;gap:2px;padding:14px 16px"><span class="hint">À reverser aux communes</span><b style="font-size:26px">${czDH(T.total.a_reverser)}</b></div>
+      <div class="card" style="display:grid;gap:2px;padding:14px 16px"><span class="hint">Nuitées taxables</span><b style="font-size:26px">${czN(T.total.nuitees)}</b></div>
+      <div class="card" style="display:grid;gap:2px;padding:14px 16px"><span class="hint">Reversé par les plateformes</span><b style="font-size:26px">${czDH(T.total.plateforme)}</b></div></div>
+    <div class="card"><h3 style="margin:0 0 8px">Par commune</h3><table class="tbl"><thead><tr><th>Commune</th><th>Tarif</th><th>Séjours</th><th>Nuitées taxables</th><th>Reversé par les plateformes</th><th>À reverser</th></tr></thead><tbody>
+      ${T.communes.map(c => `<tr><td>${esc(c.commune)}</td><td>${czDH(c.tarif)}</td><td>${c.sejours}</td><td>${czN(c.nuitees)}</td><td>${czDH(c.plateforme)}</td><td><b>${czDH(c.a_reverser)}</b></td></tr>`).join("") || `<tr><td colspan="6" class="muted">Aucun séjour sur le mois.</td></tr>`}</tbody></table></div>
+    <div class="card"><h3 style="margin:0 0 8px">Détail des séjours</h3><div class="scroll"><table class="tbl" id="tstab"><thead><tr><th>Logement</th><th>Commune</th><th>Séjour</th><th>Source</th><th>Nuits dans le mois</th><th>Personnes</th><th>Exonérées</th><th>Nuitées taxables</th><th>Montant</th></tr></thead><tbody>
+      ${T.lignes.map(l => `<tr><td>${esc(l.logement)}</td><td>${esc(l.ville)}</td><td>${esc(czD(l.arrivee))} au ${esc(czD(l.depart))}</td><td>${esc(src[l.source] || l.source)}</td><td>${l.nuits}</td><td>${l.personnes}</td>
+        <td>${l.ages_connus ? l.exoneres + (l.ages_connus < l.personnes ? ` <span class="hint">(${l.ages_connus} âge${l.ages_connus > 1 ? "s" : ""} connu${l.ages_connus > 1 ? "s" : ""})</span>` : "") : `<span class="hint">sans fiche</span>`}</td><td>${l.nuitees}</td><td>${l.plateforme ? `<span class="hint">reversé par la plateforme</span><div>${czDH(l.montant)}</div>` : czDH(l.montant)}</td></tr>`).join("")}</tbody></table></div>
+      <div class="hint" style="margin-top:6px">Les personnes exonérées sont comptées d'après les dates de naissance des fiches voyageurs. Sans fiche, toutes les personnes du séjour sont comptées.</div></div>
+    <style>@media print{.no-print,.top,nav,.tabs,.secs,.demo-ruban{display:none!important}.card{break-inside:avoid}}</style>`;
+}
+function czBTs(){
+  $("#tsm").onchange = () => { if ($("#tsm").value) { CZ.tsM = $("#tsm").value; czRe(); } };
+  $("#tspr").onclick = () => window.print();
+  $("#tscsv").onclick = () => {
+    const rows = [...document.querySelectorAll("#tstab tr")].map(tr => [...tr.children].map(td => '"' + td.innerText.replace(/\n/g, " ").replace(/"/g, '""') + '"').join(";"));
+    const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob(["﻿" + rows.join("\r\n")], {type:"text/csv;charset=utf-8"}));
+    a.download = `keylia-taxe-sejour-${CZ.tsM}.csv`; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  };
+  if ($("#tss")) $("#tss").onclick = async () => {
+    const communes = {}; document.querySelectorAll("[data-tst]").forEach(i => { communes[i.dataset.tst] = {tarif:i.value, age:(document.querySelector(`[data-tsa="${CSS.escape(i.dataset.tst)}"]`) || {}).value || 0}; });
+    const plateformes = [...document.querySelectorAll("[data-tsp]:checked")].map(i => i.dataset.tsp);
+    try { await czapi("taxe_reglages", {communes, plateformes}); toast("Tarifs enregistrés."); czRe(); } catch(e) { toast(e.message); }
+  };
 }

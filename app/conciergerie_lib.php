@@ -631,3 +631,41 @@ function cz_demarrage(): ?array {
   $faits = count(array_filter($etapes, fn($e) => $e['fait']));
   return $faits === count($etapes) ? null : ['etapes' => $etapes, 'faits' => $faits, 'total' => count($etapes)];
 }
+
+/* ---------- Taxe de séjour ----------
+   Keylia ne fixe aucun tarif : chaque commune fixe le sien (montant par nuit et par personne, exonérations, périodicité de reversement).
+   La conciergerie renseigne ceux de ses communes ; Keylia compte les nuitées et prépare l'état à reverser. */
+function cz_ts_reglages(): array {
+  $r = json_decode(reglage('cz_taxe_sejour', ''), true); $r = is_array($r) ? $r : [];
+  $villes = array_values(array_unique(array_filter(array_map(fn($x) => trim((string)$x), db()->query("SELECT DISTINCT ville FROM c_logements WHERE actif = 1 ORDER BY ville")->fetchAll(PDO::FETCH_COLUMN)))));
+  $C = []; foreach ($villes as $v) $C[$v] = ['tarif' => (float)($r['communes'][$v]['tarif'] ?? 0), 'age' => (int)($r['communes'][$v]['age'] ?? 0)];
+  return ['communes' => $C, 'plateformes' => array_values(array_intersect((array)($r['plateformes'] ?? []), array_keys(CZ_SOURCES)))];
+}
+function cz_ts_save(array $in): void {
+  $C = []; foreach ((array)($in['communes'] ?? []) as $v => $c) { $v = clip((string)$v, 80); if ($v === '') continue;
+    $C[$v] = ['tarif' => max(0, min(1000, round((float)str_replace(',', '.', (string)($c['tarif'] ?? 0)), 2))), 'age' => max(0, min(25, (int)($c['age'] ?? 0)))]; }
+  reglage_set('cz_taxe_sejour', json_encode(['communes' => $C, 'plateformes' => array_values(array_intersect((array)($in['plateformes'] ?? []), array_keys(CZ_SOURCES)))], JSON_UNESCAPED_UNICODE));
+}
+/** État de la taxe de séjour sur une période : nuitées de chaque séjour comprises dans la période, personnes taxables, montant, et ce que la plateforme reverse déjà elle-même. */
+function cz_taxe_sejour(string $from, string $to): array {
+  $R = cz_ts_reglages(); $finExcl = date('Y-m-d', strtotime($to . ' +1 day'));
+  $st = db()->prepare("SELECT r.id, r.arrivee, r.depart, r.nb_voyageurs, r.source, r.libelle, l.nom logement, l.ville FROM c_reservations r JOIN c_logements l ON l.id = r.logement_id WHERE r.statut = 'confirmee' AND r.arrivee < ? AND r.depart > ? ORDER BY l.ville, r.arrivee");
+  $st->execute([$finExcl, $from]); $lignes = []; $communes = [];
+  $fv = db()->prepare("SELECT data_enc FROM c_voyageurs WHERE reservation_id = ?");
+  foreach ($st->fetchAll() as $r) {
+    $deb = max($r['arrivee'], $from); $fin = min($r['depart'], $finExcl); $nuits = (int)round((strtotime($fin) - strtotime($deb)) / 86400); if ($nuits <= 0) continue;
+    $c = $R['communes'][trim((string)$r['ville'])] ?? ['tarif' => 0, 'age' => 0]; $pers = max(1, (int)$r['nb_voyageurs']);
+    // Âges connus par les fiches voyageurs : les personnes sous l'âge d'exonération de la commune ne sont pas comptées.
+    $fv->execute([$r['id']]); $ages = []; foreach ($fv->fetchAll(PDO::FETCH_COLUMN) as $e) { $d = json_decode(cz_dec($e), true)['date_naissance'] ?? '';
+      if (preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)$d)) $ages[] = (int)date_diff(date_create($d), date_create($r['arrivee']))->y; }
+    $exo = $c['age'] > 0 ? count(array_filter($ages, fn($a) => $a < $c['age'])) : 0; $tax = max(0, $pers - $exo);
+    $plat = in_array($r['source'], $R['plateformes'], true); $mt = round($nuits * $tax * $c['tarif'], 2);
+    $lignes[] = ['id' => (int)$r['id'], 'logement' => $r['logement'], 'ville' => $r['ville'], 'arrivee' => $r['arrivee'], 'depart' => $r['depart'], 'source' => $r['source'], 'libelle' => $r['libelle'],
+      'nuits' => $nuits, 'personnes' => $pers, 'exoneres' => $exo, 'ages_connus' => count($ages), 'nuitees' => $nuits * $tax, 'tarif' => $c['tarif'], 'montant' => $mt, 'plateforme' => $plat];
+    $k = trim((string)$r['ville']) ?: 'Sans ville'; $communes[$k] = $communes[$k] ?? ['commune' => $k, 'tarif' => $c['tarif'], 'sejours' => 0, 'nuitees' => 0, 'montant' => 0, 'plateforme' => 0, 'a_reverser' => 0];
+    $communes[$k]['sejours']++; $communes[$k]['nuitees'] += $nuits * $tax; $communes[$k]['montant'] += $mt; $communes[$k][$plat ? 'plateforme' : 'a_reverser'] += $mt;
+  }
+  $manque = array_keys(array_filter($R['communes'], fn($c) => $c['tarif'] <= 0));
+  return ['from' => $from, 'to' => $to, 'reglages' => $R, 'communes' => array_values($communes), 'lignes' => $lignes, 'sans_tarif' => $manque,
+    'total' => ['a_reverser' => round(array_sum(array_column($communes, 'a_reverser')), 2), 'plateforme' => round(array_sum(array_column($communes, 'plateforme')), 2), 'nuitees' => array_sum(array_column($communes, 'nuitees'))]];
+}

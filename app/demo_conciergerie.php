@@ -22,7 +22,9 @@ function cz_demo_photo(int $graine, string $piece): string {
 
 function cz_demo_seed(): void {
   $pdo = db(); require_once __DIR__ . '/migrations_lib.php'; mig_4($pdo); $now = now();
-  reglage_set('theme', 'orvia'); reglage_set('cz_pays', 'MA'); reglage_set('cz_demarrage_masque', '1'); reglage_set('cz_code_auto', '0');
+  reglage_set('theme', 'orvia'); reglage_set('cz_pays', 'MA'); reglage_set('cz_demarrage_masque', '1');
+  // Taxe de séjour : montants fictifs de la démo (chaque conciergerie reprend ceux de l'arrêté de sa commune).
+  reglage_set('cz_taxe_sejour', json_encode(['communes' => ['Marrakech' => ['tarif' => 30, 'age' => 12], 'Agadir' => ['tarif' => 25, 'age' => 12], 'Casablanca' => ['tarif' => 25, 'age' => 12]], 'plateformes' => []], JSON_UNESCAPED_UNICODE)); reglage_set('cz_code_auto', '0');
   // Équipe terrain (fictive)
   $ia = $pdo->prepare("INSERT INTO animatrices (prenom, nom, telephone, email, zone, actif, statut, created_at, rgpd_info_at, rgpd_image_at) VALUES (?,?,?,?,'Marrakech',1,'actif',?,?,?)"); $E = [];
   foreach ([['Fatima Zahra', 'Benali'], ['Youssef', 'Amrani'], ['Khadija', 'Ouazzani']] as $i => [$p, $n]) { $ia->execute([$p, $n, '06 00 00 1' . $i . ' 0' . $i, 'equipe' . $i . '@demo-keylia.invalid', $now, $now, $now]); $E[] = (int)$pdo->lastInsertId(); }

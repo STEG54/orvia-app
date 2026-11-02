@@ -58,6 +58,12 @@ try {
         'admins' => db()->query("SELECT id, nom FROM admins WHERE actif = 1 ORDER BY nom")->fetchAll(), 'statuts' => CZ_MISSION_STATUTS, 'titulaire' => est_titulaire(), 'gerer' => can('tout'),
         'reglages' => ['cz_conservation_jours' => cz_conservation_jours(), 'cz_copie_piece' => cz_copie_piece_demandee() ? '1' : '0', 'cz_code_auto' => reglage('cz_code_auto', '1'), 'cz_heure_menage' => reglage('cz_heure_menage', '11:00'), 'cz_ia' => reglage('cz_ia', '1'), 'ia_dispo' => defined('ORVIA_IA_CLE') && ORVIA_IA_CLE !== '']]);
 
+    case 'taxe_sejour':
+      c_admin(); c_out(cz_taxe_sejour(c_date($_GET['from'] ?? ''), c_date($_GET['to'] ?? '')) + ['agence' => AG_NOM]);
+
+    case 'taxe_reglages':
+      c_admin('tout'); cz_ts_save($in); c_out(['ok' => true, 'reglages' => cz_ts_reglages()]);
+
     case 'equipe':
       // L'équipe terrain : fiche simple, activité des 30 derniers jours, propreté notée par les voyageurs, invitation par WhatsApp.
       c_admin(); $j = date('Y-m-d'); $d30 = date('Y-m-d', strtotime('-30 days')); $d7 = date('Y-m-d', strtotime('+7 days'));

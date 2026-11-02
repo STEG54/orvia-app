@@ -24,6 +24,15 @@ http('demo.php?role=direction'); $r = c('init'); t('écran conciergerie accessib
 $agents = $r['json']['agents'] ?? [];
 $r = c('aujourdhui'); t('démarrage guidé masqué dans la démo', $r['code'] === 200 && array_key_exists('demarrage', $r['json'] ?? []) && $r['json']['demarrage'] === null, substr($r['body'], -300));
 
+echo "Taxe de séjour\n";
+$r = c('taxe_sejour', null, 'from=' . date('Y-m-01', strtotime('first day of last month')) . '&to=' . date('Y-m-t', strtotime('last day of last month')));
+$T = $r['json'] ?? []; t('état du mois précédent', $r['code'] === 200 && ($T['total']['nuitees'] ?? 0) > 0 && ($T['total']['a_reverser'] ?? 0) > 0, substr($r['body'], 0, 300));
+$l0 = $T['lignes'][0] ?? []; t('montant = nuits × personnes taxables × tarif', $l0 && abs($l0['montant'] - $l0['nuits'] * ($l0['personnes'] - $l0['exoneres']) * $l0['tarif']) < 0.01, json_encode($l0));
+$r = c('taxe_reglages', ['communes' => ['Marrakech' => ['tarif' => '30', 'age' => 12], 'Agadir' => ['tarif' => 25, 'age' => 12], 'Casablanca' => ['tarif' => 25, 'age' => 12]], 'plateformes' => ['airbnb']]);
+$r = c('taxe_sejour', null, 'from=' . date('Y-m-01', strtotime('first day of last month')) . '&to=' . date('Y-m-t', strtotime('last day of last month')));
+$airbnb = array_filter($r['json']['lignes'] ?? [], fn($l) => $l['source'] === 'airbnb');
+t('séjours Airbnb comptés à part quand la plateforme reverse', $airbnb && !array_filter($airbnb, fn($l) => !$l['plateforme']) && $r['json']['total']['plateforme'] > 0, substr($r['body'], 0, 200));
+
 echo "Équipe terrain\n";
 $r = c('equipe'); t('liste de l\'équipe avec activité et invitation WhatsApp', $r['code'] === 200 && count($r['json']['equipe'] ?? []) >= 3 && str_starts_with($r['json']['equipe'][0]['wa'] ?? '', 'https://wa.me/'), substr($r['body'], 0, 300));
 $r = c('equipe_save', ['prenom' => 'Salma', 'nom' => 'Idrissi', 'telephone' => '+212 6 61 22 33 44', 'ville' => 'Marrakech']); $qid = (int)($r['json']['id'] ?? 0); t('personne ajoutée à l\'équipe', $qid > 0, $r['body']);
