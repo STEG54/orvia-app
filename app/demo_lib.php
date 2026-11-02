@@ -5,7 +5,7 @@
 require_once __DIR__ . '/contrats_lib.php';
 require_once __DIR__ . '/report_lib.php';
 
-const DEMO_DIRIGEANT = ['email' => 'direction@demo-amaya.fr', 'nom' => 'Alexandre Morin'];
+const DEMO_DIRIGEANT = ['email' => 'direction@demo-amaya.fr', 'nom' => 'Yasmine Bennani'];
 const DEMO_CONCURRENTS = ['Atelier Solène', 'Belle Rive', 'Nordé', 'Verde Nature', 'Maison Iris', 'Kalista'];
 const DEMO_MARQUE = ['email' => 'marque@demo-amaya.fr', 'nom' => 'Sophie Arnaud', 'societe' => 'Maison Orélia Parfums'];
 
@@ -138,6 +138,13 @@ function demo_seed(): void {
     'planning_ouvert' => '1', 'signature' => DEMO_DIRIGEANT['nom'] . "\n" . AG_NOM] as $k => $v) $set->execute([$k, $v]);
   $pdo->prepare("REPLACE INTO reglages (cle, valeur) VALUES ('code_agence', 'DEMO'), ('pp_masque', '1')")->execute();
   $pdo->prepare("INSERT INTO admins (nom, email, pass_hash, droits, actif, created_at) VALUES (?,?,?,'tout',1,?)")->execute([DEMO_DIRIGEANT['nom'], DEMO_DIRIGEANT['email'], password_hash(bin2hex(random_bytes(16)), PASSWORD_DEFAULT), now()]);
+  // Keylia : une conciergerie marocaine, sans les données de l'ancien métier (animation commerciale en France : magasins, paie, DPAE…).
+  // Les tests de non-régression de ce moteur gardent le jeu complet (DEMO_JEU_COMPLET dans config.php de la CI).
+  if (!defined('DEMO_JEU_COMPLET')) {
+    foreach (['adresse' => "Rue de la Liberté, Gueliz\n40000 Marrakech", 'telephone' => '+212 5 24 00 00 00', 'siret' => '', 'iban' => '', 'bic' => '', 'ct_lieu' => 'Marrakech', 'ct_urssaf' => '', 'ct_caisse' => '', 'ct_retraite' => '',
+      'ct_convention' => '', 'hot_convention' => ''] as $k => $v) $set->execute([$k, $v]);
+    require_once __DIR__ . '/demo_conciergerie.php'; cz_demo_seed(); unset($_SESSION['admin_nom']); return;
+  }
 
   // Points de vente et lieux de mission (coordonnées réelles approximatives, aucune requête externe).
   $M = [['Beauté Lumière', 'Beauté Lumière Lyon Part-Dieu', 'Lyon', '17 rue du Dr Bouchut, 69003 Lyon', 45.7610, 4.8570], ['Hyper Rhône', 'Hyper Rhône Lyon Bellecour', 'Lyon', '15 rue de la République, 69002 Lyon', 45.7590, 4.8355],

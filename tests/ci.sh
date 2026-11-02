@@ -43,6 +43,9 @@ echo "== Démo et non-régression métier"
 installe "$tmp/demo" amaya_ci_demo "$((PORT_BASE + 1))" direction@demo-amaya.fr
 cle="cle-ci-$(date +%s)-demo"
 printf "\ndefine('AMAYA_DEMO', true);\ndefine('AMAYA_LEADS', 'leads@test.invalid');\ndefine('AMAYA_DEMO_CLE', '%s');\n" "$cle" >> "$tmp/demo/config.php"
+# Le moteur d'origine (devis, paie, contrats…) est testé sur son jeu de démo complet, Keylia sur sa conciergerie marocaine seule.
+echo "define('DEMO_JEU_COMPLET', true); // ci-jeu-complet" >> "$tmp/demo/config.php"
 php tests/metier.php "http://127.0.0.1:$((PORT_BASE + 1))" "$cle" 2>&1 | annote
+sed -i '/ci-jeu-complet/d' "$tmp/demo/config.php"
 echo "== ORVIA : parcours conciergerie complet"; php tests/conciergerie.php "http://127.0.0.1:$((PORT_BASE + 1))" "$cle" 2>&1 | annote
 echo "== Tout est vert"
