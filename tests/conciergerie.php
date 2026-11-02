@@ -135,6 +135,14 @@ $r = c('reservation_get', null, "id=$rb"); t('commande visible sur la réservati
 $r = c('services'); t('marge du mois calculée', (float)($r['json']['marges']['marge'] ?? 0) >= 220.0, json_encode($r['json']['marges'] ?? []));
 $r = c('avis'); t('avis listé avec la note par logement', in_array('Villa Test', array_column($r['json']['logements'] ?? [], 'nom'), true), $r['body']);
 
+echo "Questions des voyageurs\n";
+$r = c('voy_question', ['t' => $tokA, 'question' => 'Peut-on arriver à 11 h ?']); t('question du voyageur reçue (sans assistant : transmise)', ($r['json']['ok'] ?? false) === true && ($r['json']['transmis'] ?? false) === true, $r['body']);
+$r = c('aujourdhui'); t('question à traiter sur l\'écran du jour', in_array('Peut-on arriver à 11 h ?', array_column($r['json']['questions'] ?? [], 'texte'), true), $r['body']);
+$r = c('message_repondre', ['id' => $ra, 'texte' => 'Oui, le logement sera prêt à 11 h.']); t('réponse du gestionnaire', ($r['json']['ok'] ?? false) === true, $r['body']);
+$r = c('voy_info', null, 't=' . $tokA); $Ms = $r['json']['messages'] ?? []; t('réponse visible sur la page du voyageur', (end($Ms)['texte'] ?? '') === 'Oui, le logement sera prêt à 11 h.' && (end($Ms)['auteur'] ?? '') === 'gestion', json_encode($Ms));
+$r = c('aujourdhui'); t('question traitée', !in_array('Peut-on arriver à 11 h ?', array_column($r['json']['questions'] ?? [], 'texte'), true));
+$r = c('wa_brouillon', ['id' => $ra, 'message' => 'Bonjour']); t('brouillon refusé proprement sans assistant', $r['code'] === 400, $r['body']);
+
 echo "Espace propriétaire\n";
 $r = c('proprietaire_lien', ['id' => $pid]); preg_match('/#([a-f0-9]{48})$/', (string)($r['json']['lien'] ?? ''), $m); $pt = $m[1] ?? ''; t('lien propriétaire créé', $pt !== '', $r['body']);
 t('page propriétaire', http('proprietaire.php', null, false, false)['code'] === 200);

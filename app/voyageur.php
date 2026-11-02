@@ -41,6 +41,7 @@ input:focus,select:focus{outline:1px solid var(--ink);border-color:var(--ink)}
 .srvl{display:grid;grid-template-columns:1fr auto 70px;gap:10px;align-items:center;border-top:1px solid var(--line);padding-top:10px}.srvp{white-space:nowrap}
 textarea{font:inherit;padding:12px;border:1px solid var(--line);width:100%}
 .etape{margin:0;display:grid;gap:6px}.etape img{width:100%;max-height:340px;object-fit:cover;display:block}.secret{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:baseline;border:1px solid var(--line);padding:12px}.secret span{color:var(--soft);font-size:.85rem}.secret b{font-size:1.25rem;letter-spacing:.06em}
+.bulle{background:var(--mist,#f4f3f1);padding:10px 12px;max-width:88%;white-space:pre-line}.bulle span{display:block;font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;color:var(--soft);margin-bottom:2px}.bulle.moi{margin-inline-start:auto;background:#fff;border:1px solid var(--line)}
 #okbar{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:12px 16px;max-width:92%;z-index:9}#okbar.bad{background:var(--bad)}
 </style>
 </head>
@@ -77,16 +78,19 @@ const T2 = {
  fr:{arrTitre:"Votre arrivée",mode:"Vous arrivez en",avion:"Avion",voiture:"Voiture",train:"Train",autre:"Autre",vol:"Numéro de vol",heure:"Heure d'arrivée prévue",wa:"Votre numéro WhatsApp (avec l'indicatif)",enreg:"Enregistrer",enregOk:"C'est noté, merci.",
    srvTitre:"À votre arrivée",srvIntro:"Nous pouvons tout préparer avant votre arrivée.",commander:"Commander",commandeOk:"C'est commandé : tout sera prêt à votre arrivée.",dejaCmd:"Déjà commandé",paiement:"Réglé selon les modalités indiquées par votre hôte.",
    avArr:"Tout est-il en ordre ?",avArrQ:"Votre logement était-il impeccable à votre arrivée ?",avSej:"Votre séjour",avLog:"Le logement",avAcc:"L'accueil",com:"Un commentaire (facultatif)",photoPb:"Une photo (facultatif)",avEnv:"Envoyer mon avis",avMerci:"Merci pour votre avis.",
+   qTitre:"Une question ?",qIntro:"Posez-la ici, à toute heure. La conciergerie suit chaque échange.",qPh:"Votre question",qEnv:"Envoyer",qTransmis:"Votre question est transmise à la conciergerie, qui vous répond ici ou par WhatsApp.",vous:"Vous",assistant:"Assistant",conc:"Conciergerie",
    livTitre:"Comment arriver",maps:"Itinéraire Google Maps",waze:"Waze",repere:"Repère",parking:"Stationnement",codesTitre:"Pour entrer",code:"Code",wifi:"Wi-Fi",reseau:"Réseau",mdp:"Mot de passe",codesPlusTard:"Le code, les consignes d'entrée et le Wi-Fi s'afficheront ici le jour de votre arrivée, dès que le logement sera prêt.",appeler:"Sur place, un souci ?",departT:"Au départ",copier:"Copier",copie:"Copié",
    pb:"Un problème pendant le séjour ?",pbTxt:"Décrivez-le, nous intervenons rapidement.",pbEnv:"Signaler",pbOk:"C'est transmis. Nous revenons vers vous très vite."},
  en:{arrTitre:"Your arrival",mode:"You are arriving by",avion:"Plane",voiture:"Car",train:"Train",autre:"Other",vol:"Flight number",heure:"Expected arrival time",wa:"Your WhatsApp number (with country code)",enreg:"Save",enregOk:"Noted, thank you.",
    srvTitre:"On your arrival",srvIntro:"We can have everything ready before you arrive.",commander:"Order",commandeOk:"Ordered: everything will be ready when you arrive.",dejaCmd:"Already ordered",paiement:"Paid as specified by your host.",
    avArr:"Is everything in order?",avArrQ:"Was your accommodation spotless when you arrived?",avSej:"Your stay",avLog:"The accommodation",avAcc:"The welcome",com:"A comment (optional)",photoPb:"A photo (optional)",avEnv:"Send my review",avMerci:"Thank you for your review.",
+   qTitre:"A question?",qIntro:"Ask it here, at any time. The concierge team follows every exchange.",qPh:"Your question",qEnv:"Send",qTransmis:"Your question has been passed on to the concierge team, who will reply here or on WhatsApp.",vous:"You",assistant:"Assistant",conc:"Concierge",
    livTitre:"Getting there",maps:"Google Maps directions",waze:"Waze",repere:"Landmark",parking:"Parking",codesTitre:"Getting in",code:"Code",wifi:"Wi-Fi",reseau:"Network",mdp:"Password",codesPlusTard:"The code, entry instructions and Wi-Fi will appear here on your arrival day, as soon as the accommodation is ready.",appeler:"Any issue on site?",departT:"When you leave",copier:"Copy",copie:"Copied",
    pb:"A problem during your stay?",pbTxt:"Describe it, we will act quickly.",pbEnv:"Report",pbOk:"Sent. We will get back to you very soon."},
  ar:{arrTitre:"الوصول ديالك",mode:"جاي ب",avion:"الطيارة",voiture:"الطوموبيل",train:"التران",autre:"شي حاجة أخرى",vol:"رقم الرحلة",heure:"ساعة الوصول المتوقعة",wa:"رقم الواتساب ديالك (مع رمز البلاد)",enreg:"سجّل",enregOk:"تسجّل، شكرا.",
    srvTitre:"ملي توصل",srvIntro:"نقدرو نوجّدو ليك كلشي قبل ما توصل.",commander:"طلب",commandeOk:"تطلب: كلشي غادي يكون واجد ملي توصل.",dejaCmd:"مطلوب من قبل",paiement:"الخلاص حسب الطريقة اللي قال المضيف ديالك.",
    avArr:"واش كلشي مزيان؟",avArrQ:"واش السكن كان نقي مزيان ملي وصلتي؟",avSej:"الإقامة ديالك",avLog:"السكن",avAcc:"الاستقبال",com:"ملاحظة (اختياري)",photoPb:"تصويرة (اختياري)",avEnv:"صيفط الرأي ديالي",avMerci:"شكرا على الرأي ديالك.",
+   qTitre:"عندك شي سؤال؟",qIntro:"سولنا هنا، فأي وقت. الكونسيرجري كاتتبع كل رسالة.",qPh:"السؤال ديالك",qEnv:"صيفط",qTransmis:"السؤال ديالك وصل للكونسيرجري، غادي يجاوبوك هنا ولا فالواتساب.",vous:"نتا",assistant:"المساعد",conc:"الكونسيرجري",
    livTitre:"كيفاش توصل",maps:"الطريق ف Google Maps",waze:"Waze",repere:"علامة",parking:"الباركينغ",codesTitre:"باش تدخل",code:"الكود",wifi:"الويفي",reseau:"الشبكة",mdp:"كلمة السر",codesPlusTard:"الكود، طريقة الدخول والويفي غادي يبانو هنا نهار الوصول ديالك، ملي يكون السكن واجد.",appeler:"كاين شي مشكل فالبلاصة؟",departT:"ملي تخرج",copier:"نسخ",copie:"تنسخ",
    pb:"كاين شي مشكل فالإقامة؟",pbTxt:"شرحو لينا، غادي نتدخلو بسرعة.",pbEnv:"صيفط",pbOk:"توصلنا بيه. غادي نرجعو ليك دغيا."}
 };
@@ -101,6 +105,9 @@ function extras(){
         ${V.wifi_nom || V.wifi_mdp ? `<div class="secret"><span>${t.wifi}</span><b>${esc(V.wifi_nom)}</b>${V.wifi_mdp ? `<span>${t.mdp}</span><b>${esc(V.wifi_mdp)}</b><button type="button" class="btn ghost" data-cp="${esc(V.wifi_mdp)}">${t.copier}</button>` : ""}</div>` : ""}
         ${V.depart_consignes ? `<div><b>${t.departT} :</b> ${esc(V.depart_consignes)}</div>` : ""}` : `<p class="muted">${t.codesPlusTard}</p>`}
       ${V.urgence ? `<div class="muted">${t.appeler} <a href="tel:${esc(V.urgence.replace(/[^+0-9]/g, ""))}">${esc(V.urgence)}</a></div>` : ""}</div>`);
+  if (!I.termine || I.en_sejour || (I.messages || []).length) h.push(`<form class="card" id="q"><h2>${t.qTitre}</h2><p class="muted">${t.qIntro}</p>
+      ${(I.messages || []).map(m => `<div class="bulle ${m.auteur === "voyageur" ? "moi" : ""}"><span>${m.auteur === "voyageur" ? t.vous : m.auteur === "assistant" ? t.assistant : t.conc}</span>${esc(m.texte)}</div>`).join("")}
+      <textarea name="question" rows="2" placeholder="${t.qPh}" maxlength="1000"></textarea><button class="btn">${t.qEnv}</button></form>`);
   const nomS = s => (L === "ar" && s.nom_ar) || (L === "en" && s.nom_en) || s.nom;
   if (!I.termine) h.push(`<form class="card" id="arr"><h2>${t.arrTitre}</h2><div class="row"><label>${t.mode}<select name="mode"><option value="">${u.choisir}</option>${["avion","voiture","train","autre"].map(k => `<option value="${k}" ${I.arrivee_mode === k ? "selected" : ""}>${t[k]}</option>`).join("")}</select></label>
       <label>${t.vol}<input name="vol" value="${esc(I.vol)}" autocapitalize="characters" placeholder="AT 773"></label></div>
@@ -120,7 +127,8 @@ function bindExtras(){
   document.querySelectorAll("[data-cp]").forEach(b => b.onclick = async () => { try { await navigator.clipboard.writeText(b.dataset.cp); b.textContent = t.copie; } catch(e) {} });
   document.querySelectorAll(".stars").forEach(g => g.querySelectorAll("button").forEach(b => b.onclick = () => { g.dataset.val = b.dataset.v; g.querySelectorAll("button").forEach(x => x.classList.toggle("on", +x.dataset.v <= +b.dataset.v)); }));
   const envoi = (id, action, prep, okMsg) => { const f = $("#" + id); if (!f) return; f.onsubmit = async ev => { ev.preventDefault(); const b = f.querySelector("button:not([data-v])"); b.disabled = true;
-    try { const r = await prep(f); await call(action, r.fd || r, !!r.fd); I = await call("voy_info"); render(); setTimeout(() => alertOk(okMsg), 50); } catch(x) { b.disabled = false; alertOk(x.message.replace(/^champ:.*/, T[L].oblig), true); } }; };
+    try { const r = await prep(f); const res = await call(action, r.fd || r, !!r.fd); I = await call("voy_info"); render(); const msg = okMsg || (res.transmis && !res.reponse ? t.qTransmis : ""); if (msg) setTimeout(() => alertOk(msg), 50); if (id === "q") $("#q").scrollIntoView({block:"end"}); } catch(x) { b.disabled = false; alertOk(x.message.replace(/^champ:.*/, T[L].oblig), true); } }; };
+  envoi("q", "voy_question", f => ({t:tok, question:f.question.value}), "");
   envoi("arr", "voy_arrivee", f => Object.assign({t:tok}, Object.fromEntries(new FormData(f))), t.enregOk);
   envoi("srv", "voy_commande", f => { const s = {}; f.querySelectorAll("[data-s]").forEach(i => { if (+i.value > 0) s[i.dataset.s] = +i.value; }); return {t:tok, services:s}; }, t.commandeOk);
   const avis = (moment) => f => { const fd = new FormData(f); fd.append("t", tok); fd.append("moment", moment); f.querySelectorAll(".stars").forEach(g => { if (g.dataset.val) fd.append(g.dataset.n, g.dataset.val); }); return {fd}; };

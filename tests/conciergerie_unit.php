@@ -108,4 +108,21 @@ t('planning : arrivée du jour à son heure', in_array('14:00', array_column($P[
 t('planning : ménage qui finit après l\'arrivée signalé', str_contains($tx, 'après l\'arrivée prévue à 14:00'), $tx);
 t('planning : mission non attribuée signalée', str_contains($tx, 'non attribué'), $tx);
 
+echo "Assistant des voyageurs\n";
+db()->prepare("UPDATE c_logements SET code_enc = ?, livret_enc = ? WHERE id = ?")->execute([cz_enc('CODE-9931'), cz_enc(json_encode(['wifi_nom' => 'RiadWifi', 'wifi_mdp' => 'mdp-secret', 'repere' => 'Porte verte'])), $lid]);
+$sys = ''; $GLOBALS['CZ_IA_APPEL'] = function ($s, $m) use (&$sys) { $sys = $s; return '{"reponse":"Le réseau Wi-Fi s\'appelle RiadWifi.","transmettre":false}'; };
+$q = cz_question_voyageur($ra, 'Quel est le wifi ?');
+t('réponse de l\'assistant au voyageur', $q['reponse'] === 'Le réseau Wi-Fi s\'appelle RiadWifi.' && !$q['transmis']);
+t('l\'assistant ne reçoit ni code ni mot de passe Wi-Fi', $sys !== '' && !str_contains($sys, 'CODE-9931') && !str_contains($sys, 'mdp-secret') && str_contains($sys, 'RiadWifi') && str_contains($sys, 'Porte verte'));
+t('échange gardé, rien à traiter', (int)db()->query("SELECT COUNT(*) FROM c_messages WHERE reservation_id = {$ra['id']} AND a_traiter = 1")->fetchColumn() === 0 && (int)db()->query("SELECT COUNT(*) FROM c_messages WHERE reservation_id = {$ra['id']}")->fetchColumn() === 2);
+$GLOBALS['CZ_IA_APPEL'] = fn($s, $m) => 'Je transmets. {"reponse":"La conciergerie est prévenue.","transmettre":true}';
+$q = cz_question_voyageur($ra, 'Il y a une fuite sous l\'évier'); t('problème : transmis au gestionnaire', $q['transmis'] && (int)db()->query("SELECT COUNT(*) FROM c_messages WHERE reservation_id = {$ra['id']} AND a_traiter = 1")->fetchColumn() === 1);
+$GLOBALS['CZ_IA_APPEL'] = fn($s, $m) => null;
+$q = cz_question_voyageur($ra, 'Encore une question'); t('assistant muet : question transmise, pas de réponse inventée', $q['transmis'] && $q['reponse'] === '');
+$GLOBALS['CZ_IA_APPEL'] = fn($s, $m) => '{"reponse":"Bien sûr, à 15 h.","transmettre":false}';
+t('brouillon WhatsApp', (cz_brouillon_whatsapp($ra, 'On arrive à quelle heure ?')['reponse'] ?? '') === 'Bien sûr, à 15 h.');
+reglage_set('cz_ia', '0'); t('assistant coupé dans les réglages', cz_brouillon_whatsapp($ra, 'x') === null); reglage_set('cz_ia', '1');
+unset($GLOBALS['CZ_IA_APPEL']);
+try { cz_question_voyageur($ra, '  '); t('question vide refusée', false); } catch (InvalidArgumentException $e) { t('question vide refusée', $e->getMessage() === 'champ:question'); }
+
 echo "\n$ok réussis, $ko en échec\n"; exit($ko ? 1 : 0);

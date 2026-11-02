@@ -12,6 +12,7 @@ const MIGRATIONS = [
   4 => 'ORVIA : logements, propriétaires, réservations, fiches voyageurs, missions et incidents',
   5 => 'ORVIA : arrivée des voyageurs, tâches du gestionnaire, avis, lien de mission, position, services à l\'arrivée',
   6 => 'ORVIA : livret d\'arrivée (position fixée, repère, étapes en photos, Wi-Fi)',
+  7 => 'ORVIA : questions des voyageurs et réponses de l\'assistant',
 ];
 
 function mig_derniere(): int { return (int)array_key_last(MIGRATIONS); }
@@ -111,4 +112,10 @@ function mig_6(PDO $pdo): void {
     $st = $pdo->prepare("SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?"); $st->execute([$p . 'c_logements', $c]);
     if (!(int)$st->fetchColumn()) $pdo->exec("ALTER TABLE `{$p}c_logements` ADD COLUMN $c $def");
   }
+}
+
+function mig_7(PDO $pdo): void {
+  $p = function_exists('demo_prefixe') ? demo_prefixe() : '';
+  $pdo->exec("CREATE TABLE IF NOT EXISTS `{$p}c_messages` (id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY, reservation_id INT UNSIGNED NOT NULL, auteur VARCHAR(10) NOT NULL, texte TEXT NOT NULL,
+    a_traiter TINYINT(1) NOT NULL DEFAULT 0, traite_at DATETIME DEFAULT NULL, created_at DATETIME NOT NULL, KEY reservation_id (reservation_id), KEY a_traiter (a_traiter)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
 }

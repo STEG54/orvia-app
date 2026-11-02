@@ -52,7 +52,8 @@ function czVJour(){
       <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" data-lien="${esc(r.lien)}">Copier le lien voyageur</button>${!r.code_envoye && r.fv.ok ? `<button class="primary" data-code="${r.id}">Envoyer le code</button>` : ""}<button class="btn ghost" data-det="${r.id}">Détail</button></div><div style="display:flex;gap:8px;flex-wrap:wrap">${czWaBloc(r.wa)}</div></div>`).join("");
   const mis = J.missions.map(m => `<tr data-mis="${m.id}" style="cursor:pointer"><td>${m.date < auj ? `<span class="pill p-bad">En retard</span> ` : ""}${esc(m.heure || "")}</td><td>${esc(m.logement)}</td><td>${esc((CZ.ini.types || {})[m.type] || m.type)}</td><td>${esc(m.agent || "Non attribuée")}</td><td>${czSt(m.statut)}</td></tr>`).join("");
   const inc = J.incidents.map(i => `<li>${i.bloquant == 1 ? `<span class="pill p-bad">Bloquant</span> ` : ""}<b>${esc(i.logement)}</b> · ${esc(i.description)}</li>`).join("");
-  return `<div class="card"><h2>Arrivées</h2>${arr || `<div class="muted">Aucune arrivée aujourd'hui ni demain.</div>`}</div>
+  const qs = (J.questions || []).map(q => `<li><b>${esc(q.logement)}</b> · ${esc(q.texte)} <button class="btn ghost" data-det="${q.reservation_id}">Répondre</button></li>`).join("");
+  return `${qs ? `<div class="card accent"><h2>Questions des voyageurs à traiter</h2><ul>${qs}</ul></div>` : ""}<div class="card"><h2>Arrivées</h2>${arr || `<div class="muted">Aucune arrivée aujourd'hui ni demain.</div>`}</div>
     <div class="card"><h2>Missions du jour</h2>${mis ? `<div class="scroll"><table class="tbl"><thead><tr><th>Heure</th><th>Logement</th><th>Type</th><th>Équipe</th><th>État</th></tr></thead><tbody>${mis}</tbody></table></div>` : `<div class="muted">Aucune mission aujourd'hui.</div>`}</div>
     <div class="card"><h2>Signalements ouverts</h2>${inc ? `<ul>${inc}</ul><button class="btn" data-gs="cz_incidents">Tous les signalements</button>` : `<div class="muted">Aucun signalement ouvert.</div>`}</div>`;
 }
@@ -117,6 +118,7 @@ function czVDetail(){
       ${CZ.ini.gerer && r.statut === "confirmee" && r.source === "direct" ? `<button class="btn ghost" id="dann">Annuler la réservation</button>` : ""}</div></div>
    <div class="card"><h2>Fiches voyageurs</h2>${fiches ? `<div class="scroll"><table class="tbl"><thead><tr><th>#</th><th>Voyageur</th><th>Reçue</th><th>État</th><th>Pièce</th></tr></thead><tbody>${fiches}</tbody></table></div>` : `<div class="muted">Aucune fiche reçue. Envoyez le lien au voyageur.</div>`}
     <div class="hint">${D.titulaire ? "Vous voyez le contenu des fiches en tant que dirigeant(e). Chaque consultation de pièce est enregistrée, l'image est floutée et porte votre nom." : "Seul(e) un(e) dirigeant(e) peut lire le contenu des fiches. L'équipe voit uniquement leur état."}</div></div>
+   ${r.statut === "confirmee" ? czVMessages(D) : ""}
    ${(D.commandes || []).length ? `<div class="card"><h2>Services commandés</h2><table class="tbl"><tbody>${D.commandes.map(c => `<tr><td>${c.quantite} × ${esc(c.nom)}</td><td>${czDH(c.quantite * c.prix)}</td><td><span class="hint">marge ${czDH(c.quantite * (c.prix - c.cout))}</span></td><td>${esc(c.statut)}</td></tr>`).join("")}</tbody></table></div>` : ""}
    ${(D.avis || []).length ? `<div class="card"><h2>Avis du voyageur</h2>${D.avis.map(v => `<div><b>${v.moment === "arrivee" ? "À l'arrivée" : "Après le séjour"}</b> · ${[["Propreté", v.proprete], ["Logement", v.logement], ["Accueil", v.accueil]].filter(x => x[1] != null).map(x => x[0] + " " + x[1] + "/5").join(" · ")}${v.commentaire ? `<div class="hint">« ${esc(v.commentaire)} »</div>` : ""}</div>`).join("")}</div>` : ""}
    ${CZ.decl ? czVDecl() : ""}`;
@@ -137,6 +139,7 @@ function czBDetail(){
   if ($("#dforce")) $("#dforce").onclick = async () => { if (!confirm("Envoyer le code alors que le feu vert n'est pas donné ? Cet envoi sera noté dans le journal.")) return; await czCode(r.id, true); czDetail(r.id); };
   if ($("#ddecl")) $("#ddecl").onclick = async () => { try { CZ.decl = await czapi("fiches_declaration", null, "id=" + r.id); go("gestion"); } catch(e) { toast(e.message); } };
   if ($("#dprint")) $("#dprint").onclick = () => window.print();
+  czBMessages(r);
   if ($("#dann")) $("#dann").onclick = async () => { if (!confirm("Annuler cette réservation ? La mission de ménage prévue sera retirée.")) return; try { await czapi("reservation_annuler", {id:r.id}); CZ.det = null; czRe(); } catch(e) { toast(e.message); } };
 }
 
@@ -199,6 +202,7 @@ function czVLogements(){
       <label>Conservation des fiches voyageurs (jours)<input type="number" id="rcj" min="30" max="3650" value="${R.cz_conservation_jours}"></label><div class="hint">Délai légal à faire valider par votre conseil. Après le départ, les fiches passent sous scellé ; à la fin de ce délai, elles sont effacées.</div>
       <label class="chk"><input type="checkbox" id="rcp" ${R.cz_copie_piece === "1" ? "checked" : ""}> Demander la photo de la pièce d'identité au voyageur</label>
       <label class="chk"><input type="checkbox" id="rca" ${R.cz_code_auto === "1" ? "checked" : ""}> Envoyer le code d'accès automatiquement dès le feu vert</label>
+      <label class="chk"><input type="checkbox" id="ria" ${R.cz_ia === "1" ? "checked" : ""}> Assistant pour les voyageurs : il répond aux questions sur leur page et prépare vos réponses WhatsApp</label>${R.ia_dispo ? "" : `<div class="hint">Assistant pas encore branché sur cette installation.</div>`}
       <label>Heure habituelle du ménage<input type="time" id="rch" value="${esc(R.cz_heure_menage)}"></label><button class="btn" id="rsave">Enregistrer les réglages</button></div>` : ""}`;
 }
 function czBLogements(){
@@ -206,7 +210,7 @@ function czBLogements(){
   if ($("#lnew")) $("#lnew").onclick = () => { CZ.ed = {id:0, nom:"", ville:"", adresse:"", proprietaire_id:null, agent_id:null, acces:"", code:"", kit_linge:"", duree_menage:120, ical:[], notes:"", actif:1, checklist:[{piece:"Chambre",photos:2},{piece:"Salle de bain",photos:2},{piece:"Cuisine",photos:2},{piece:"Salon",photos:2}]}; czRe(); };
   document.querySelectorAll("[data-led]").forEach(b => b.onclick = async () => { try { CZ.ed = (await czapi("logement_get", null, "id=" + b.dataset.led)).logement; czRe(); } catch(e) { toast(e.message); } });
   document.querySelectorAll("[data-sync]").forEach(b => b.onclick = async () => { b.disabled = true; try { const r = await czapi("logement_sync", {id:+b.dataset.sync}); toast(`${r.ajoutees} nouvelle(s), ${r.modifiees} modifiée(s), ${r.annulees} annulée(s).`); CZ.ini = null; czRe(); } catch(e) { toast(e.message); b.disabled = false; } });
-  if ($("#rsave")) $("#rsave").onclick = async () => { try { await czapi("reglages_save", {cz_conservation_jours:+$("#rcj").value, cz_copie_piece:$("#rcp").checked, cz_code_auto:$("#rca").checked, cz_heure_menage:$("#rch").value}); CZ.ini = null; toast("Réglages enregistrés."); } catch(e) { toast(e.message); } };
+  if ($("#rsave")) $("#rsave").onclick = async () => { try { await czapi("reglages_save", {cz_conservation_jours:+$("#rcj").value, cz_copie_piece:$("#rcp").checked, cz_code_auto:$("#rca").checked, cz_heure_menage:$("#rch").value, cz_ia:$("#ria").checked}); CZ.ini = null; toast("Réglages enregistrés."); } catch(e) { toast(e.message); } };
 }
 function czVLogEd(){
   const l = CZ.ed, opt = (L, v, f) => L.map(x => `<option value="${x.id}" ${+v === +x.id ? "selected" : ""}>${esc(f(x))}</option>`).join("");
@@ -384,7 +388,7 @@ function czVLivret(l){
   return `<h3>Livret d'arrivée</h3>
     <div class="hint">Au Maroc l'adresse ne suffit pas : ce livret mène l'agent et le voyageur jusqu'à la porte. Le voyageur voit le chemin et les photos dès 7 jours avant l'arrivée ; le code, les consignes et le mot de passe Wi-Fi seulement le jour d'arrivée, une fois le feu vert donné. Rien après son départ.</div>
     <label>Position exacte <span class="hint">· lien Google Maps complet ou coordonnées. Sur place, le bouton prend la position du téléphone.</span>
-      <div style="display:flex;gap:8px;flex-wrap:wrap"><input id="lpos" style="flex:1;min-width:220px" placeholder="https://www.google.com/maps/place/…  ou  31.6295, -7.9811"><button type="button" class="btn" id="lgeo">Je suis devant la porte</button></div></label>
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><input id="lpos" style="flex:1;min-width:220px" placeholder="Lien Google Maps, Plus Code (8C9G+QX Marrakech) ou 31.6295, -7.9811"><button type="button" class="btn" id="lgeo">Je suis devant la porte</button></div></label>
     <div class="hint" id="lposi">${c ? `${l.pos_fixe ? "Position fixée" : "Position relevée au premier passage de l'agent, à confirmer"} : <a href="${esc(c.maps)}" target="_blank" rel="noopener">vérifier sur la carte</a>` : "Aucune position : sans elle, ni l'agent ni le voyageur n'ont d'itinéraire."}</div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px">
       <label>Repère<input id="lrep" value="${esc(b.repere || "")}" placeholder="Après la mosquée, deuxième ruelle à gauche, porte verte"></label>
@@ -417,4 +421,30 @@ function czBLivret(){
     navigator.geolocation.getCurrentPosition(p => { const ll = p.coords.latitude.toFixed(6) + ", " + p.coords.longitude.toFixed(6); $("#lpos").value = ll;
       $("#lposi").innerHTML = `Position prise à ${Math.round(p.coords.accuracy)} m près : ${esc(ll)}. Elle sera enregistrée avec le logement.${p.coords.accuracy > 50 ? " Précision faible : sortez à découvert et recommencez." : ""}`; },
       () => $("#lposi").textContent = "Position refusée ou indisponible : autorisez la localisation, ou collez un lien Google Maps.", {enableHighAccuracy:true, timeout:15000, maximumAge:0}); };
+}
+
+/* ---------- Messages du voyageur et assistant ---------- */
+function czVMessages(D){
+  const M = D.messages || [], qui = {voyageur:"Voyageur", assistant:"Assistant", gestion:"Vous"};
+  return `<div class="card" id="msgs"><h2>Messages</h2>
+    ${M.length ? M.map(m => `<div style="padding:8px 10px;margin:4px 0;max-width:85%;white-space:pre-line;${m.auteur === "voyageur" ? "background:#f4f3f1" : "margin-left:auto;border:1px solid #e2e2e2"}"><div class="hint">${qui[m.auteur] || m.auteur} · ${esc(String(m.created_at).slice(0, 16).replace("T", " "))}${+m.a_traiter ? ` <span class="pill p-warn">À traiter</span>` : ""}</div>${esc(m.texte)}</div>`).join("") : `<div class="muted">Aucune question posée sur la page du voyageur.</div>`}
+    ${CZ.ini.gerer ? `<label>Répondre sur sa page<textarea id="mrt" rows="2"></textarea></label><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="primary" id="mrs">Envoyer</button>${M.some(m => +m.a_traiter) ? `<button class="btn ghost" id="mrk">Marquer comme traité</button>` : ""}</div>` : ""}
+    <h3 style="margin-top:14px">Réponse WhatsApp</h3>
+    ${D.assistant ? `<label>Message reçu du voyageur sur WhatsApp<textarea id="wbr" rows="2" placeholder="Collez ici son message"></textarea></label><button class="btn" id="wbp">Proposer une réponse</button>
+      <div id="wbo" hidden style="display:grid;gap:8px;margin-top:8px"><div class="hint" id="wbi"></div><textarea id="wbt" rows="4"></textarea><div style="display:flex;gap:8px;flex-wrap:wrap"><a class="primary" id="wbw" target="_blank" rel="noopener" href="#">Ouvrir WhatsApp</a><button class="btn ghost" id="wbc">Copier</button></div></div>`
+      : `<div class="hint">Activez l'assistant dans les réglages de la conciergerie pour qu'il prépare vos réponses.</div>`}</div>`;
+}
+function czBMessages(r){
+  if ($("#mrs")) $("#mrs").onclick = async () => { try { await czapi("message_repondre", {id:r.id, texte:$("#mrt").value}); toast("Réponse visible sur la page du voyageur."); czDetail(r.id); } catch(e) { toast(e.message); } };
+  if ($("#mrk")) $("#mrk").onclick = async () => { try { await czapi("message_repondre", {id:r.id, texte:""}); czDetail(r.id); } catch(e) { toast(e.message); } };
+  if (!$("#wbp")) return;
+  let num = "";
+  const maj = () => { const t = $("#wbt").value; if (num) $("#wbw").href = num + "?text=" + encodeURIComponent(t); else $("#wbw").hidden = true; };
+  $("#wbp").onclick = async e => { e.target.disabled = true;
+    try { const b = await czapi("wa_brouillon", {id:r.id, message:$("#wbr").value}); num = b.wa ? b.wa.split("?")[0] : "";
+      $("#wbo").hidden = false; $("#wbt").value = b.reponse; $("#wbi").textContent = (b.transmettre ? "À vérifier : l'assistant pense qu'il faut votre intervention. " : "") + "Relisez et corrigez avant d'envoyer." + (num ? "" : " Pas de numéro WhatsApp sur ce séjour : copiez la réponse.");
+      maj(); } catch(x) { toast(x.message.replace(/^champ:.*/, "Collez d'abord le message du voyageur.")); }
+    e.target.disabled = false; };
+  $("#wbt").oninput = maj;
+  $("#wbc").onclick = () => czCopier($("#wbt").value, "Réponse copiée.");
 }

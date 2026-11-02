@@ -466,3 +466,80 @@ function cz_livret_voyageur(array $r): ?array {
   $l = cz_logement((int)$r['logement_id']); if (!$l) return null;
   return cz_livret($l, $r['code_envoye_at'] !== null && $auj >= $r['arrivee']);
 }
+
+/* ---------- Assistant des voyageurs (IA) ---------- */
+// L'assistant répond à partir du livret et du séjour. Il ne reçoit JAMAIS le code d'accès, le mot de passe Wi-Fi ni une donnée de fiche voyageur :
+// ces informations restent affichées par la page elle-même, selon ses propres règles (feu vert, jour d'arrivée).
+// Clé fournie par ORVIA dans config.php (ORVIA_IA_CLE) ; l'agence peut couper l'assistant dans ses réglages.
+const CZ_IA_MODELE = 'claude-haiku-5-5';
+function cz_ia_active(): bool { return (defined('ORVIA_IA_CLE') && ORVIA_IA_CLE !== '' || isset($GLOBALS['CZ_IA_APPEL'])) && reglage('cz_ia', '1') === '1'; }
+/** Appel du modèle. $GLOBALS['CZ_IA_APPEL'] (callable) remplace l'appel réseau dans les tests. */
+function cz_ia_appel(string $systeme, array $messages, int $max = 600): ?string {
+  if (isset($GLOBALS['CZ_IA_APPEL'])) return ($GLOBALS['CZ_IA_APPEL'])($systeme, $messages);
+  if (!defined('ORVIA_IA_CLE') || ORVIA_IA_CLE === '' || !function_exists('curl_init')) return null;
+  $c = curl_init('https://api.anthropic.com/v1/messages');
+  curl_setopt_array($c, [CURLOPT_POST => true, CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 30, CURLOPT_CONNECTTIMEOUT => 8,
+    CURLOPT_HTTPHEADER => ['content-type: application/json', 'x-api-key: ' . ORVIA_IA_CLE, 'anthropic-version: 2023-06-01'],
+    CURLOPT_POSTFIELDS => json_encode(['model' => CZ_IA_MODELE, 'max_tokens' => $max, 'system' => $systeme, 'messages' => $messages], JSON_UNESCAPED_UNICODE)]);
+  $r = curl_exec($c); $code = curl_getinfo($c, CURLINFO_HTTP_CODE); curl_close($c);
+  if ($code !== 200 || !$r) { error_log('ORVIA IA : réponse ' . $code); return null; }
+  $j = json_decode($r, true); $t = ''; foreach ((array)($j['content'] ?? []) as $b) if (($b['type'] ?? '') === 'text') $t .= $b['text'];
+  return $t !== '' ? $t : null;
+}
+/** Ce que l'assistant sait du séjour : jamais de code, de mot de passe ni de fiche voyageur. */
+function cz_ia_contexte(array $r): string {
+  $l = cz_logement((int)$r['logement_id']) ?: []; $b = cz_livret_brut($l);
+  $S = array_map(fn($s) => $s['nom'] . ' : ' . (float)$s['prix'] . ' DH (à commander ' . (int)$s['delai_h'] . ' h avant l\'arrivée, depuis cette page)', cz_services());
+  $L = ['Conciergerie : ' . AG_NOM, 'Logement : ' . ($l['nom'] ?? '') . ', ' . trim(($l['adresse'] ?? '') . ' ' . ($l['ville'] ?? '')),
+    'Séjour : arrivée le ' . $r['arrivee'] . ' (à partir de ' . reglage('cz_heure_arrivee', '15:00') . '), départ le ' . $r['depart'] . ' (avant ' . reglage('cz_heure_depart', '11:00') . ')',
+    'Repère : ' . ($b['repere'] ?: 'non renseigné'), 'Stationnement : ' . ($b['parking'] ?: 'non renseigné'), 'Nom du réseau Wi-Fi : ' . ($b['wifi_nom'] ?: 'non renseigné'),
+    'Consignes de départ : ' . ($b['depart'] ?: 'non renseignées'), 'Étapes pour arriver : ' . (implode(' / ', array_filter(array_column($b['etapes'], 'texte'))) ?: 'non renseignées'),
+    'Services à l\'arrivée : ' . ($S ? implode(' ; ', $S) : 'aucun'), 'Itinéraire, photos de l\'entrée, code d\'accès et mot de passe Wi-Fi : affichés sur la page du voyageur (le code et le mot de passe le jour de l\'arrivée, une fois le logement prêt).'];
+  return implode("\n", $L);
+}
+function cz_ia_systeme(array $r, string $pour): string {
+  return "Tu es l'assistant de la conciergerie " . AG_NOM . " (Maroc). " . ($pour === 'voyageur' ? "Tu réponds directement au voyageur, sur sa page de séjour." : "Tu rédiges un brouillon de réponse WhatsApp que le gestionnaire relira avant de l'envoyer au voyageur.") . "
+Règles :
+- Réponds dans la langue du message du voyageur (français, anglais, arabe, darija, espagnol…), avec le vouvoiement, en trois phrases au plus, sans emoji, sans tiret cadratin.
+- Appuie-toi uniquement sur les informations ci-dessous. Si l'information n'y est pas, dis que la conciergerie revient vers lui rapidement : n'invente jamais un horaire, un prix, un code ou un service.
+- Ne donne jamais de code d'accès ni de mot de passe : ils s'affichent sur sa page le jour de l'arrivée, une fois le logement prêt.
+- Ne demande jamais de pièce d'identité ni de photo de document : les fiches se remplissent uniquement sur la page sécurisée.
+- Panne, fuite, bruit, sécurité, plainte, demande de remboursement, changement de dates, arrivée anticipée ou départ tardif : réponds poliment que la conciergerie est prévenue et qu'elle revient vers lui, et transmets.
+Réponds uniquement par un objet JSON : {\"reponse\": \"…\", \"transmettre\": true|false}. transmettre vaut true si un humain doit intervenir ou si tu n'as pas la réponse.
+
+Informations du séjour :
+" . cz_ia_contexte($r);
+}
+function cz_ia_lire(?string $t): ?array {
+  if ($t === null) return null;
+  if (preg_match('/\{.*\}/s', $t, $x) && is_array($j = json_decode($x[0], true)) && isset($j['reponse'])) return ['reponse' => trim((string)$j['reponse']), 'transmettre' => !empty($j['transmettre'])];
+  return ['reponse' => trim($t), 'transmettre' => true];
+}
+function cz_message(int $rid, string $auteur, string $texte, bool $aTraiter = false): void {
+  db()->prepare("INSERT INTO c_messages (reservation_id, auteur, texte, a_traiter, created_at) VALUES (?,?,?,?,?)")->execute([$rid, $auteur, clip($texte, 2000), $aTraiter ? 1 : 0, now()]);
+}
+/** Question posée par le voyageur sur sa page. Sans assistant (ou s'il échoue), la question part au gestionnaire. */
+function cz_question_voyageur(array $r, string $q): array {
+  $q = trim(clip($q, 1000)); if ($q === '') throw new InvalidArgumentException('champ:question');
+  $st = db()->prepare("SELECT auteur, texte FROM c_messages WHERE reservation_id = ? ORDER BY id DESC LIMIT 6"); $st->execute([$r['id']]); $H = array_reverse($st->fetchAll());
+  $msgs = []; foreach ($H as $h) $msgs[] = ['role' => $h['auteur'] === 'voyageur' ? 'user' : 'assistant', 'content' => $h['texte']];
+  $msgs[] = ['role' => 'user', 'content' => $q];
+  // L'API attend une alternance stricte : on fusionne les messages consécutifs du même rôle.
+  $m2 = []; foreach ($msgs as $m) { if ($m2 && end($m2)['role'] === $m['role']) $m2[count($m2) - 1]['content'] .= "\n" . $m['content']; else $m2[] = $m; }
+  if ($m2 && $m2[0]['role'] !== 'user') array_shift($m2);
+  $rep = cz_ia_active() ? cz_ia_lire(cz_ia_appel(cz_ia_systeme($r, 'voyageur'), $m2)) : null;
+  cz_message((int)$r['id'], 'voyageur', $q, !$rep || $rep['transmettre']);
+  if ($rep && $rep['reponse'] !== '') cz_message((int)$r['id'], 'assistant', $rep['reponse']);
+  if (!$rep || $rep['transmettre']) cz_alerte_question($r, $q);
+  return ['reponse' => $rep['reponse'] ?? '', 'transmis' => !$rep || $rep['transmettre']];
+}
+function cz_alerte_question(array $r, string $q): void {
+  if (!defined('AG_EMAIL') || AG_EMAIL === '') return;
+  try { require_once __DIR__ . '/report_lib.php'; mail_send(AG_EMAIL, 'Question d\'un voyageur : ' . $r['logement'], '<p style="font:15px sans-serif"><b>' . h($r['logement']) . '</b>, séjour du ' . h($r['arrivee']) . ' au ' . h($r['depart']) . '<br><br>« ' . nl2br(h($q)) . ' »<br><br>À traiter dans la rubrique Aujourd\'hui.</p>'); } catch (Throwable $e) {}
+}
+/** Brouillon de réponse WhatsApp pour le gestionnaire, à partir du message reçu du voyageur. */
+function cz_brouillon_whatsapp(array $r, string $recu): ?array {
+  $recu = trim(clip($recu, 2000)); if ($recu === '') throw new InvalidArgumentException('champ:message');
+  if (!cz_ia_active()) return null;
+  return cz_ia_lire(cz_ia_appel(cz_ia_systeme($r, 'gestionnaire'), [['role' => 'user', 'content' => $recu]]));
+}

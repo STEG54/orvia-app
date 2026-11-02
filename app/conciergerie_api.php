@@ -39,6 +39,7 @@ function c_wa_voyageur(array $r): array {
   return $o;
 }
 
+function c_messages(int $rid, int $n = 30): array { $st = db()->prepare("SELECT id, auteur, texte, a_traiter, created_at FROM c_messages WHERE reservation_id = ? ORDER BY id DESC LIMIT $n"); $st->execute([$rid]); return array_reverse($st->fetchAll()); }
 $action = (string)($_GET['action'] ?? ''); demo_bloquer($action);
 $multipart = str_starts_with($_SERVER['CONTENT_TYPE'] ?? '', 'multipart/form-data');
 $in = $multipart ? $_POST : (json_decode(file_get_contents('php://input') ?: '{}', true) ?: []);
@@ -55,7 +56,7 @@ try {
         'agents' => db()->query("SELECT id, prenom, nom, telephone FROM animatrices WHERE actif = 1 AND statut IN ('actif','sans_offres') ORDER BY prenom, nom")->fetchAll(),
         'sources' => CZ_SOURCES, 'types' => CZ_MISSION_TYPES, 'modes' => CZ_ARRIVEE_MODES,
         'admins' => db()->query("SELECT id, nom FROM admins WHERE actif = 1 ORDER BY nom")->fetchAll(), 'statuts' => CZ_MISSION_STATUTS, 'titulaire' => est_titulaire(), 'gerer' => can('tout'),
-        'reglages' => ['cz_conservation_jours' => cz_conservation_jours(), 'cz_copie_piece' => cz_copie_piece_demandee() ? '1' : '0', 'cz_code_auto' => reglage('cz_code_auto', '1'), 'cz_heure_menage' => reglage('cz_heure_menage', '11:00')]]);
+        'reglages' => ['cz_conservation_jours' => cz_conservation_jours(), 'cz_copie_piece' => cz_copie_piece_demandee() ? '1' : '0', 'cz_code_auto' => reglage('cz_code_auto', '1'), 'cz_heure_menage' => reglage('cz_heure_menage', '11:00'), 'cz_ia' => reglage('cz_ia', '1'), 'ia_dispo' => defined('ORVIA_IA_CLE') && ORVIA_IA_CLE !== '']]);
 
     case 'aujourdhui':
       c_admin(); $j = date('Y-m-d'); $d = date('Y-m-d', strtotime('+1 day'));
@@ -66,7 +67,8 @@ try {
       $st = db()->prepare("SELECT m.id, m.type, m.date, m.heure, m.statut, l.nom logement, l.ville, CONCAT(a.prenom, ' ', a.nom) agent FROM c_missions m JOIN c_logements l ON l.id = m.logement_id LEFT JOIN animatrices a ON a.id = m.animatrice_id WHERE m.date = ? OR (m.date < ? AND m.statut <> 'faite') ORDER BY m.date, m.heure");
       $st->execute([$j, $j]);
       $inc = db()->query("SELECT i.id, i.description, i.bloquant, i.created_at, l.nom logement FROM c_incidents i JOIN c_logements l ON l.id = i.logement_id WHERE i.statut = 'ouvert' ORDER BY i.bloquant DESC, i.created_at DESC LIMIT 30")->fetchAll();
-      c_out(['arrivees' => $arr, 'missions' => $st->fetchAll(), 'incidents' => $inc]);
+      $Q = db()->query("SELECT m.reservation_id, m.texte, m.created_at, l.nom logement FROM c_messages m JOIN c_reservations r ON r.id = m.reservation_id JOIN c_logements l ON l.id = r.logement_id WHERE m.a_traiter = 1 ORDER BY m.id DESC LIMIT 30")->fetchAll();
+      c_out(['arrivees' => $arr, 'missions' => $st->fetchAll(), 'incidents' => $inc, 'questions' => $Q]);
 
     case 'logement_get':
       c_admin(); $l = cz_logement((int)($_GET['id'] ?? 0)) ?: c_fail('Logement introuvable.', 404);
@@ -85,7 +87,7 @@ try {
       foreach (array_filter(explode("\n", $ical)) as $u) if (!preg_match('#^https://\S+$#i', $u)) c_fail('Chaque lien de calendrier doit commencer par https://');
       $pos = null; $ps = trim((string)($in['position'] ?? ''));
       if (is_numeric($in['lat'] ?? null) && is_numeric($in['lng'] ?? null)) $pos = cz_parse_position($in['lat'] . ',' . $in['lng']);
-      elseif ($ps !== '' && !($pos = cz_parse_position($ps))) c_fail(preg_match('#goo\.gl|maps\.app#i', $ps) ? 'Lien Google Maps raccourci : ouvrez-le dans le navigateur, puis copiez l\'adresse complète de la page (elle contient les coordonnées).' : 'Position non reconnue : collez un lien Google Maps complet ou des coordonnées (31.6295, -7.9811).');
+      elseif ($ps !== '' && !($pos = cz_parse_position($ps)) && !($pos = (function () use ($ps, $in) { require_once __DIR__ . '/geo_lib.php'; $g = geo_position_texte($ps, 'Maroc', (string)($in['ville'] ?? '')); return $g ? [round((float)$g['lat'], 6), round((float)$g['lng'], 6)] : null; })())) c_fail(preg_match('#goo\.gl|maps\.app#i', $ps) ? 'Lien Google Maps raccourci illisible : ouvrez-le dans le navigateur, puis copiez l\'adresse complète de la page (elle contient les coordonnées).' : 'Position non reconnue : collez un lien Google Maps, un Plus Code (« 8C9G+QX Marrakech ») ou des coordonnées (31.6295, -7.9811).');
       $chk = []; foreach ((array)($in['checklist'] ?? []) as $p) { $p = ['piece' => clip($p['piece'] ?? '', 60), 'consignes' => clip($p['consignes'] ?? '', 400), 'photos' => max(0, min(10, (int)($p['photos'] ?? 1)))]; if ($p['piece'] !== '') $chk[] = $p; }
       $v = [$nom, clip($in['ville'] ?? '', 80), clip($in['adresse'] ?? '', 300), ((int)($in['proprietaire_id'] ?? 0)) ?: null, ((int)($in['agent_id'] ?? 0)) ?: null,
         cz_enc(clip($in['acces'] ?? '', 1500)), cz_enc(clip($in['code'] ?? '', 40)), json_encode($chk ?: CZ_PIECES_DEFAUT, JSON_UNESCAPED_UNICODE), clip($in['kit_linge'] ?? '', 120),
@@ -138,6 +140,7 @@ try {
         'libelle' => $r['libelle'], 'statut' => $r['statut'], 'code_envoye' => $r['code_envoye_at'], 'lien' => cz_lien_voyageur($r), 'fv' => cz_feu_vert($r),
         'heure' => $r['arrivee_heure'], 'vol' => $r['vol'], 'mode' => $r['arrivee_mode'], 'wa' => c_wa_voyageur($r)], 'fiches' => $F, 'titulaire' => $tit,
         'commandes' => (function () use ($r) { $st = db()->prepare("SELECT c.quantite, c.prix, c.cout, c.statut, s.nom FROM c_commandes c JOIN c_services s ON s.id = c.service_id WHERE c.reservation_id = ?"); $st->execute([$r['id']]); return $st->fetchAll(); })(),
+        'messages' => c_messages((int)$r['id']), 'assistant' => cz_ia_active(),
         'avis' => (function () use ($r) { $st = db()->prepare("SELECT moment, proprete, logement, accueil, commentaire, created_at FROM c_avis WHERE reservation_id = ?"); $st->execute([$r['id']]); return $st->fetchAll(); })()]);
 
     case 'fiches_declaration':
@@ -213,9 +216,22 @@ try {
     case 'reglages_save':
       c_admin('tout'); if (!est_titulaire()) c_fail('Réservé aux dirigeant(e)s.', 403);
       reglage_set('cz_conservation_jours', (string)max(30, min(3650, (int)($in['cz_conservation_jours'] ?? 365))));
-      reglage_set('cz_copie_piece', empty($in['cz_copie_piece']) ? '0' : '1'); reglage_set('cz_code_auto', empty($in['cz_code_auto']) ? '0' : '1');
+      reglage_set('cz_copie_piece', empty($in['cz_copie_piece']) ? '0' : '1'); reglage_set('cz_code_auto', empty($in['cz_code_auto']) ? '0' : '1'); if (isset($in['cz_ia'])) reglage_set('cz_ia', empty($in['cz_ia']) ? '0' : '1');
       reglage_set('cz_heure_menage', preg_match('/^\d{2}:\d{2}$/', (string)($in['cz_heure_menage'] ?? '')) ? $in['cz_heure_menage'] : '11:00');
       c_out(['ok' => true]);
+
+    case 'wa_brouillon':
+      // Brouillon de réponse au message WhatsApp reçu d'un voyageur : le gestionnaire relit, corrige, puis envoie.
+      c_admin(); limite('ia_brouillon', 120, 3600); $r = cz_reservation((int)($in['id'] ?? 0)) ?: c_fail('Réservation introuvable.', 404);
+      try { $b = cz_brouillon_whatsapp($r, (string)($in['message'] ?? '')); } catch (InvalidArgumentException $e) { c_fail($e->getMessage()); }
+      if (!$b) c_fail(cz_ia_active() ? 'L\'assistant ne répond pas pour le moment, réessayez dans un instant.' : 'Assistant désactivé dans les réglages.');
+      $tel = cz_wa_reservation($r); c_out($b + ['wa' => $tel !== '' ? cz_wa_lien($tel, $b['reponse']) : '']);
+
+    case 'message_repondre':
+      // Réponse du gestionnaire, affichée sur la page du voyageur ; la question est marquée traitée.
+      c_admin(); $rid = (int)($in['id'] ?? 0); cz_reservation($rid) ?: c_fail('Réservation introuvable.', 404); $t = trim((string)($in['texte'] ?? ''));
+      if ($t !== '') cz_message($rid, 'gestion', $t);
+      db()->prepare("UPDATE c_messages SET a_traiter = 0, traite_at = ? WHERE reservation_id = ? AND a_traiter = 1")->execute([now(), $rid]); c_out(['ok' => true]);
 
     case 'planning':
       c_admin(); c_out(cz_planning(c_date($_GET['date'] ?? date('Y-m-d'))));
@@ -318,9 +334,14 @@ try {
       c_out(['logement' => $r['logement'], 'ville' => $r['ville'], 'arrivee' => $r['arrivee'], 'depart' => $r['depart'], 'attendues' => max(1, (int)$r['nb_voyageurs']), 'recues' => cz_nb_fiches((int)$r['id']),
         'piece' => cz_copie_piece_demandee(), 'pays' => reglage('cz_pays', 'MA'), 'agence' => AG_NOM, 'types' => CZ_PIECE_TYPES,
         'arrivee_mode' => $r['arrivee_mode'], 'vol' => $r['vol'], 'arrivee_heure' => $r['arrivee_heure'], 'whatsapp' => cz_dec($r['whatsapp_enc'] ?? ''), 'avis' => cz_avis_ouverts($r),
-        'livret' => cz_livret_voyageur($r), 'en_sejour' => date('Y-m-d') >= $r['arrivee'] && date('Y-m-d') < $r['depart'], 'termine' => date('Y-m-d') >= $r['depart'],
+        'livret' => cz_livret_voyageur($r), 'assistant' => cz_ia_active(), 'messages' => array_map(fn($m) => ['auteur' => $m['auteur'], 'texte' => $m['texte'], 'date' => $m['created_at']], c_messages((int)$r['id'])), 'en_sejour' => date('Y-m-d') >= $r['arrivee'] && date('Y-m-d') < $r['depart'], 'termine' => date('Y-m-d') >= $r['depart'],
         'services' => $r['arrivee'] >= date('Y-m-d') ? array_map(fn($x) => ['id' => (int)$x['id'], 'nom' => $x['nom'], 'nom_en' => $x['nom_en'], 'nom_ar' => $x['nom_ar'], 'description' => $x['description'], 'prix' => (float)$x['prix']], cz_services()) : [],
         'commandes' => (function () use ($r) { $st = db()->prepare("SELECT s.nom, s.nom_en, s.nom_ar, c.quantite FROM c_commandes c JOIN c_services s ON s.id = c.service_id WHERE c.reservation_id = ? AND c.statut <> 'annulee'"); $st->execute([$r['id']]); return $st->fetchAll(); })()]);
+
+    case 'voy_question':
+      limite('voy_q', 20, 3600); $r = cz_reservation_par_jeton((string)($in['t'] ?? '')) ?: c_fail('Ce lien n\'est plus valable.', 404);
+      if (date('Y-m-d') > date('Y-m-d', strtotime($r['depart'] . ' +3 days'))) c_fail('Ce séjour est terminé : contactez directement votre hôte.');
+      try { c_out(['ok' => true] + cz_question_voyageur($r, (string)($in['question'] ?? ''))); } catch (InvalidArgumentException $e) { c_fail($e->getMessage()); }
 
     case 'voy_arrivee':
       limite('voy', 60, 600); $r = cz_reservation_par_jeton((string)($in['t'] ?? '')) ?: c_fail('Ce lien n\'est plus valable.', 404);
