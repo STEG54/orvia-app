@@ -27,6 +27,7 @@ installe() { # $1 dossier, $2 base, $3 port, $4 e-mail du dirigeant
 }
 echo "== Installation neuve"; installe "$tmp/agence" amaya_ci "$PORT_BASE"; echo "installation : OK"
 echo "== Tests unitaires"; php tests/unitaires.php "$tmp/agence" 2>&1 | annote
+echo "== ORVIA : calendriers, missions, chiffrement, conservation"; php tests/conciergerie_unit.php "$tmp/agence" 2>&1 | annote
 if [ -f tests/securite.php ]; then echo "== Connexions et accès"; php tests/securite.php "http://127.0.0.1:$PORT_BASE" "$tmp/agence" 2>&1 | annote; fi
 if [ -f tests/acces.php ]; then echo "== Photos, sessions, espace marques, en-têtes"; php tests/acces.php "http://127.0.0.1:$PORT_BASE" "$tmp/agence" 2>&1 | annote; fi
 if command -v moto_server >/dev/null || [ -n "${S3_TEST_ENDPOINT:-}" ]; then
@@ -43,4 +44,5 @@ installe "$tmp/demo" amaya_ci_demo "$((PORT_BASE + 1))" direction@demo-amaya.fr
 cle="cle-ci-$(date +%s)-demo"
 printf "\ndefine('AMAYA_DEMO', true);\ndefine('AMAYA_LEADS', 'leads@test.invalid');\ndefine('AMAYA_DEMO_CLE', '%s');\n" "$cle" >> "$tmp/demo/config.php"
 php tests/metier.php "http://127.0.0.1:$((PORT_BASE + 1))" "$cle" 2>&1 | annote
+echo "== ORVIA : parcours conciergerie complet"; php tests/conciergerie.php "http://127.0.0.1:$((PORT_BASE + 1))" "$cle" 2>&1 | annote
 echo "== Tout est vert"

@@ -1,5 +1,5 @@
 // Administration (la direction) : devis, factures, clients, réglages.
-const G = { sub:"tableau", tab:null, docs:null, ini:null, ed:null, cal:{}, cli:null, mail:null };
+const G = { sub:"cz_jour", tab:null, docs:null, ini:null, ed:null, cal:{}, cli:null, mail:null };
 async function gapi(action, body, query){
   const url = "gestion_api.php?action=" + action + (query ? "&" + query : "");
   const r = await fetch(url, body ? {method:"POST", credentials:"same-origin", headers:{"Content-Type":"application/json","X-Requested-With":"amaya"}, body:JSON.stringify(body)} : {credentials:"same-origin"});
@@ -23,6 +23,7 @@ const ferie = (zone, iso) => ((G.ini.feries || {})[zone] || {})[iso] || "";
 
 async function loadGestion(){
   if (!G.ini) G.ini = await gapi("init");
+  if (G.sub.startsWith("cz_")) return czLoad();
   if (G.sub === "tableau" && !G.ed) [G.tab, G.pil] = await Promise.all([gapi("tableau"), gapi("pilotage")]);
   if (G.sub === "planning" && !G.ed) await loadPlanning();
   if (G.sub === "releves" && !G.ed) await loadReleves();
@@ -39,6 +40,7 @@ async function loadGestion(){
 function vGestion(){
   const subs = [["tableau","Tableau de bord"],["devis","Devis"],["planning","Planning"],["contrats","Contrats"],["releves","Relevés d'heures"],["paye","Paye"],["factures","Factures"],["clients","Clients"],["reglages","Réglages"]];
   const head = "";
+  if (G.sub.startsWith("cz_")) return head + czView();
   if (G.ed) return head + vDocEdit();
   if (G.sub === "tableau") return head + vTableau();
   if (G.sub === "planning") return head + vPlanning();
@@ -57,6 +59,7 @@ function vGestion(){
 }
 function bGestion(){
   document.querySelectorAll("[data-gs]").forEach(b => b.onclick = () => { G.sub = b.dataset.gs; G.ed = null; G.cli = null; G.mail = null; go("gestion"); });
+  if (G.sub.startsWith("cz_")) return czBind();
   if (G.ed) return bDocEdit();
   if (G.sub === "tableau") return bTableau();
   if (G.sub === "planning") return bPlanning();

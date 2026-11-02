@@ -76,6 +76,7 @@ function demo_effacer(int $id, bool $fin): void {
   demo_base(function () use ($p, $id, $fin) { $pdo = db(); $pdo->exec('SET FOREIGN_KEY_CHECKS = 0');
     foreach ($pdo->query("SHOW FULL TABLES WHERE Table_type = 'BASE TABLE'")->fetchAll(PDO::FETCH_NUM) as [$t]) if (str_starts_with($t, $p)) $pdo->exec("DROP TABLE `$t`");
     $pdo->exec('SET FOREIGN_KEY_CHECKS = 1');
+    @unlink(upload_dir() . '/.migrations-' . $p); // tables effacées : les évolutions de la base seront rejouées pour la démo remise à neuf
     $pdo->prepare($fin ? "UPDATE demo_leads SET supprime_le = NOW() WHERE id = ?" : "UPDATE demo_leads SET cree_le = NULL WHERE id = ?")->execute([$id]); });
 }
 /** Accès de l'éditeur (config.php : AMAYA_DEMO_CLE) : sa propre agence fictive, sans e-mail ni limite de durée. */

@@ -75,7 +75,7 @@ function vConsent(){
   $("#view").innerHTML = `<div class="card login accent"><h1>Vos données</h1>
     <div class="muted">Avant de continuer, merci de prendre connaissance de la façon dont ${AGN} utilise vos données et vos photos.</div>
     <label class="ck"><input type="checkbox" id="rg1"><span>J'ai lu <a href="confidentialite.php" target="_blank" rel="noopener">l'information sur mes données personnelles</a>.</span></label>
-    <label class="ck"><input type="checkbox" id="rg2"><span>J'autorise ${AGN} à transmettre mon selfie et mes photos de rayon aux marques pour lesquelles j'anime.</span></label>
+    <label class="ck"><input type="checkbox" id="rg2"><span>J'autorise ${AGN} à transmettre les photos de mes interventions aux propriétaires des logements concernés.</span></label>
     <button class="primary" id="go">Continuer</button></div>`;
   $("#go").onclick = async () => { if (!$("#rg1").checked || !$("#rg2").checked) return toast("Merci de cocher les deux cases.");
     try { await api("consent", {rgpd_info:1, rgpd_image:1}); boot(); } catch(e) { toast(e.message); } };
@@ -94,7 +94,7 @@ function vLogin(){
     <label>Adresse e-mail<input id="email" type="email" inputmode="email" autocomplete="email" placeholder="Pour recevoir vos comptes rendus en PDF"></label>
     <div><div class="muted" style="margin-bottom:6px">Votre zone</div><div class="chips" id="lzone">${zones.map(z => `<button type="button" class="chip" aria-pressed="false" data-v="${z}">${z}</button>`).join("")}</div></div>
     <label class="ck"><input type="checkbox" id="rg1"><span>J'ai lu <a href="confidentialite.php" target="_blank" rel="noopener">l'information sur mes données personnelles</a>.</span></label>
-    <label class="ck"><input type="checkbox" id="rg2"><span>J'autorise ${AGN} à transmettre mon selfie et mes photos de rayon aux marques pour lesquelles j'anime.</span></label>
+    <label class="ck"><input type="checkbox" id="rg2"><span>J'autorise ${AGN} à transmettre les photos de mes interventions aux propriétaires des logements concernés.</span></label>
     <button class="primary" id="go">Entrer</button>
     <div class="login-links"><a href="installer.php" data-install>Installer l'appli sur mon téléphone</a><a href="mailto:${CONTACT}">Contacter ${AG}</a></div></div>`;
   // Identité déjà saisie sur ce téléphone : tout est prérempli, il suffit d'appuyer sur « Entrer ».
@@ -138,6 +138,8 @@ function vLogin(){
 async function refreshPhotos(){ try { S.photos = (await api("photos", null, "token=" + S.d.token)).photos; } catch(e) { S.photos = []; } }
 
 function render(){
+  if (S.view === "cz" || S.view === "home") return czHome();
+  if (S.view === "czm") return czMis();
   if (S.view === "home") return vHome();
   if (S.view === "mine") return vMine();
   if (S.view === "plan") return vPlan();

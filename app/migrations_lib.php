@@ -9,6 +9,7 @@ const MIGRATIONS = [
   1 => 'Point de départ : base existante (évolutions antérieures appliquées au fil de l\'eau)',
   2 => 'Documents de l\'agence : table docs_lpi renommée docs_agence',
   3 => 'Code d\'accès des intervenants : réglage code_lpi renommé code_agence',
+  4 => 'ORVIA : logements, propriétaires, réservations, fiches voyageurs, missions et incidents',
 ];
 
 function mig_derniere(): int { return (int)array_key_last(MIGRATIONS); }
@@ -59,4 +60,24 @@ function mig_3(PDO $pdo): void {
   $T = (function_exists('demo_prefixe') ? demo_prefixe() : '') . 'reglages'; if (!mig_existe($pdo, $T)) return;
   $v = $pdo->query("SELECT valeur FROM `$T` WHERE cle = 'code_lpi'")->fetchColumn();
   if ($v !== false) { $pdo->prepare("INSERT INTO `$T` (cle, valeur) VALUES ('code_agence', ?) ON DUPLICATE KEY UPDATE valeur = VALUES(valeur)")->execute([$v]); $pdo->exec("DELETE FROM `$T` WHERE cle = 'code_lpi'"); }
+}
+function mig_4(PDO $pdo): void {
+  $p = function_exists('demo_prefixe') ? demo_prefixe() : ''; $E = 'ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci';
+  $pdo->exec("CREATE TABLE IF NOT EXISTS `{$p}c_proprietaires` (id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY, nom VARCHAR(160) NOT NULL, email VARCHAR(160) NOT NULL DEFAULT '', telephone VARCHAR(40) NOT NULL DEFAULT '',
+    jeton_hash CHAR(64) DEFAULT NULL, plafond DECIMAL(10,2) NOT NULL DEFAULT 0, actif TINYINT(1) NOT NULL DEFAULT 1, created_at DATETIME NOT NULL, UNIQUE KEY jeton_hash (jeton_hash)) $E");
+  $pdo->exec("CREATE TABLE IF NOT EXISTS `{$p}c_logements` (id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY, nom VARCHAR(160) NOT NULL, ville VARCHAR(80) NOT NULL DEFAULT '', adresse VARCHAR(300) NOT NULL DEFAULT '',
+    proprietaire_id INT UNSIGNED DEFAULT NULL, agent_id INT UNSIGNED DEFAULT NULL, acces_enc TEXT, code_enc TEXT, checklist TEXT, kit_linge VARCHAR(120) NOT NULL DEFAULT '', duree_menage SMALLINT UNSIGNED NOT NULL DEFAULT 120,
+    ical TEXT, ical_maj DATETIME DEFAULT NULL, notes TEXT, actif TINYINT(1) NOT NULL DEFAULT 1, created_at DATETIME NOT NULL, KEY proprietaire_id (proprietaire_id)) $E");
+  $pdo->exec("CREATE TABLE IF NOT EXISTS `{$p}c_reservations` (id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY, logement_id INT UNSIGNED NOT NULL, source VARCHAR(20) NOT NULL DEFAULT 'direct', uid VARCHAR(220) NOT NULL DEFAULT '',
+    arrivee DATE NOT NULL, depart DATE NOT NULL, libelle VARCHAR(190) NOT NULL DEFAULT '', nb_voyageurs TINYINT UNSIGNED NOT NULL DEFAULT 1, statut VARCHAR(12) NOT NULL DEFAULT 'confirmee',
+    lien_hash CHAR(64) NOT NULL, lien_enc TEXT, code_envoye_at DATETIME DEFAULT NULL, created_at DATETIME NOT NULL, updated_at DATETIME NOT NULL,
+    UNIQUE KEY lien_hash (lien_hash), KEY logement (logement_id, arrivee), KEY uid (logement_id, uid(100))) $E");
+  $pdo->exec("CREATE TABLE IF NOT EXISTS `{$p}c_voyageurs` (id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY, reservation_id INT UNSIGNED NOT NULL, data_enc TEXT NOT NULL, piece CHAR(32) DEFAULT NULL,
+    created_at DATETIME NOT NULL, scelle_at DATETIME DEFAULT NULL, KEY reservation_id (reservation_id)) $E");
+  $pdo->exec("CREATE TABLE IF NOT EXISTS `{$p}c_missions` (id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY, logement_id INT UNSIGNED NOT NULL, reservation_id INT UNSIGNED DEFAULT NULL, type VARCHAR(12) NOT NULL DEFAULT 'menage',
+    date DATE NOT NULL, heure VARCHAR(5) NOT NULL DEFAULT '', animatrice_id INT UNSIGNED DEFAULT NULL, statut VARCHAR(12) NOT NULL DEFAULT 'a_faire', etat MEDIUMTEXT, note VARCHAR(500) NOT NULL DEFAULT '',
+    debut_at DATETIME DEFAULT NULL, fin_at DATETIME DEFAULT NULL, created_at DATETIME NOT NULL, KEY jour (date), KEY agent (animatrice_id, date), KEY reservation_id (reservation_id)) $E");
+  $pdo->exec("CREATE TABLE IF NOT EXISTS `{$p}c_incidents` (id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY, logement_id INT UNSIGNED NOT NULL, mission_id INT UNSIGNED DEFAULT NULL, auteur VARCHAR(160) NOT NULL DEFAULT '',
+    description VARCHAR(1000) NOT NULL, photo CHAR(32) DEFAULT NULL, bloquant TINYINT(1) NOT NULL DEFAULT 0, statut VARCHAR(10) NOT NULL DEFAULT 'ouvert', cout DECIMAL(10,2) DEFAULT NULL,
+    proprio_statut VARCHAR(10) NOT NULL DEFAULT '', proprio_le DATETIME DEFAULT NULL, created_at DATETIME NOT NULL, clos_at DATETIME DEFAULT NULL, KEY logement (logement_id, statut)) $E");
 }

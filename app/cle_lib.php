@@ -92,6 +92,10 @@ function cle_elements(): array {
   foreach (db()->query("SELECT animatrice_id, data FROM fiches_animatrices")->fetchAll() as $r) if (str_contains((string)$r['data'], 'enc:')) $E[] = ['fiche', (int)$r['animatrice_id']];
   tf_schema(); foreach (db()->query("SELECT id FROM admins WHERE totp_secret <> ''")->fetchAll(PDO::FETCH_COLUMN) as $id) $E[] = ['admins', (int)$id];
   $c = db()->query("SHOW COLUMNS FROM comptes_clients LIKE 'totp_secret'")->fetch(); if ($c) foreach (db()->query("SELECT id FROM comptes_clients WHERE totp_secret <> ''")->fetchAll(PDO::FETCH_COLUMN) as $id) $E[] = ['comptes_clients', (int)$id];
+  // ORVIA : pièces des voyageurs (fichiers) et champs chiffrés des logements, réservations et fiches.
+  require_once __DIR__ . '/conciergerie_lib.php';
+  if (is_dir(upload_dir() . '/voyageurs')) foreach (glob(upload_dir() . '/voyageurs/*.bin') ?: [] as $f) $E[] = ['fichier', $f];
+  foreach (CZ_COLONNES_CHIFFREES as $t => $cols) { try { foreach (db()->query("SELECT id FROM $t")->fetchAll(PDO::FETCH_COLUMN) as $id) $E[] = ['colonnes', [$t, (int)$id]]; } catch (Throwable $e) {} }
   return $E;
 }
 /** Rechiffre sous la clé en service ce qui ne l'est pas encore, dans la limite de $secondes. */
@@ -105,6 +109,11 @@ function cle_rechiffrer(int $secondes = 60): array {
       $st = db()->prepare("SELECT data FROM fiches_animatrices WHERE animatrice_id = ?"); $st->execute([$id]); $d = json_decode((string)$st->fetchColumn(), true) ?: []; $ch = false;
       foreach (['secu', 'iban'] as $k) if (str_starts_with((string)($d[$k] ?? ''), 'enc:') && ($x = $re((string)base64_decode(substr($d[$k], 4)))) !== null) { $d[$k] = 'enc:' . base64_encode($x); $ch = true; }
       if ($ch) db()->prepare("UPDATE fiches_animatrices SET data = ? WHERE animatrice_id = ?")->execute([json_encode($d, JSON_UNESCAPED_UNICODE), $id]);
+    } elseif ($type === 'colonnes') {
+      [$t, $rid] = $id; $cols = CZ_COLONNES_CHIFFREES[$t] ?? [];
+      $st = db()->prepare("SELECT " . implode(', ', $cols) . " FROM $t WHERE id = ?"); $st->execute([$rid]); $row = $st->fetch() ?: [];
+      foreach ($cols as $c) { $v = (string)($row[$c] ?? ''); if ($v === '') continue; $b = base64_decode($v, true); if ($b === false) continue;
+        if (($x = $re($b)) !== null) db()->prepare("UPDATE $t SET $c = ? WHERE id = ?")->execute([base64_encode($x), $rid]); }
     } else {
       $st = db()->prepare("SELECT totp_secret FROM $type WHERE id = ?"); $st->execute([$id]);
       if (($x = $re((string)base64_decode((string)$st->fetchColumn()))) !== null) db()->prepare("UPDATE $type SET totp_secret = ? WHERE id = ?")->execute([base64_encode($x), $id]);

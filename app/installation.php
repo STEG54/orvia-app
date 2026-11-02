@@ -5,7 +5,7 @@ $dir = __DIR__; $deja = is_file("$dir/config.php");
 $h = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
 $err = ''; $ok = false; $v = $_POST + ['db_host' => '', 'db_name' => '', 'db_user' => '', 'ag_nom' => '', 'ag_court' => '', 'ag_email' => '', 'ag_couleur' => '#6A4BFF', 'tz' => 'Europe/Paris', 'ag_matricule' => 'AG',
   'd1_nom' => '', 'd1_email' => '', 'd2_nom' => '', 'd2_email' => '', 'mail_from' => ''];
-$TZ = ['Europe/Paris' => 'France métropolitaine'];
+$TZ = ['Africa/Casablanca' => 'Maroc', 'Europe/Paris' => 'France métropolitaine', 'Europe/Brussels' => 'Belgique', 'Europe/Zurich' => 'Suisse', 'Europe/Luxembourg' => 'Luxembourg'];
 if (!$deja && $_SERVER['REQUEST_METHOD'] === 'POST') {
   try {
     $t = fn($k, $max = 160) => mb_substr(trim((string)($_POST[$k] ?? '')), 0, $max);

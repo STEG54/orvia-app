@@ -7,7 +7,7 @@ const nm = a => { const p = String(a.prenom || "").toLowerCase().replace(/(^|[\s
 const byNom = (x, y) => String(x.nom).localeCompare(String(y.nom), "fr", {sensitivity:"base"}) || String(x.prenom).localeCompare(String(y.prenom), "fr", {sensitivity:"base"});
 // Deux espaces : Reporting (selon les droits) et Administration (direction seulement).
 const ALL_TABS = [["rapports","Comptes rendus"],["client","Rapports d'animation"],["evts","Rapports événementiels"],["merch","Rapports merchandising"],["objectifs","Objectifs"],["photos","Photothèque"],["animatrices","Intervenants","tout"],["documents","Documents","gestion"],["marques","Marques","tout"],["formations","Formations","tout"],["magasins","Points d'intervention","tout"],["envois","Envois"],["clients","Espace marques","tout"],["admins","Administrateurs","gestion"],["gestion","Administration","gestion"]];
-const ADM_SUBS = [["operations","Opérations"],["devis","Devis"],["planning","Planning"],["poste","Prise de poste"],["contrats","Contrats"],["releves","Relevés d'heures"],["paye","Paye"],["ndf","Notes de frais et factures"],["rup","Registre du personnel"],["marges","Marges"],["factures","Factures"],["clients","Clients"],["animatrices","Intervenants"],["documents","Documents"],["formations","Formations"],["marques","Marques"],["magasins","Points d'intervention"],["reglages","Réglages"],["maintenance","Maintenance"],["admins","Administrateurs"]];
+const ADM_SUBS = [...CZ_SUBS, ["devis","Devis"],["factures","Factures"],["clients","Clients"],["animatrices","Équipe"],["documents","Documents"],["reglages","Réglages"],["maintenance","Maintenance"],["admins","Administrateurs"]];
 // Onglets rangés dans Administration pour la direction (les autres administrateurs qui y ont droit les gardent dans Reporting).
 const ADM_TABS = ["admins", "animatrices", "documents", "formations", "marques", "magasins"];
 const TABS = () => ALL_TABS.filter(t => (!t[2] || (t[2] === "gestion" ? !!(A.L.moi || {}).gestion : can(t[2]))));
@@ -86,11 +86,11 @@ function shell(inner){
 function bindShell(){
   document.querySelectorAll("[data-tab]").forEach(b => b.onclick = () => go(b.dataset.tab));
   document.querySelectorAll("[data-sec]").forEach(b => b.onclick = () => { if (b.dataset.sec === "rep") return go(A.lastRep || "rapports");
-    if (A.lastAdm && A.lastAdm !== "gestion") return go(A.lastAdm); G.sub = A.lastSub || "planning"; G.ed = null; go("gestion"); });
+    if (A.lastAdm && A.lastAdm !== "gestion") return go(A.lastAdm); G.sub = A.lastSub || "cz_jour"; G.ed = null; go("gestion"); });
   document.querySelectorAll("[data-dash]").forEach(b => b.onclick = toDash);
   document.querySelectorAll("[data-asub]").forEach(b => b.onclick = () => { const k = b.dataset.asub; if (ADM_TABS.includes(k)) return go(k); G.sub = k; G.ed = null; G.cli = null; G.mail = null; go("gestion"); });
 }
-function toDash(){ if (!(A.L.moi || {}).gestion) return go("rapports"); G.sub = "tableau"; G.ed = null; go("gestion"); }
+function toDash(){ if (!(A.L.moi || {}).gestion) return go("rapports"); G.sub = "cz_jour"; G.ed = null; go("gestion"); }
 async function go(tab){
   A.tab = tab;
   try {

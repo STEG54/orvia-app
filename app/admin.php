@@ -27,6 +27,7 @@
 <script src="admin_marges.js?v=<?= filemtime(__DIR__ . "/admin_marges.js") ?>"></script>
 <script src="admin_ops.js?v=<?= filemtime(__DIR__ . "/admin_ops.js") ?>"></script>
 <script src="admin_maint.js?v=<?= filemtime(__DIR__ . "/admin_maint.js") ?>"></script>
+<script src="admin_conciergerie.js?v=<?= filemtime(__DIR__ . "/admin_conciergerie.js") ?>"></script>
 <script src="admin_gestion.js?v=<?= filemtime(__DIR__ . "/admin_gestion.js") ?>"></script>
 <script src="admin.js?v=<?= filemtime(__DIR__ . "/admin.js") ?>"></script>
 </body>

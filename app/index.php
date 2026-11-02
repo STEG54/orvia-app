@@ -21,6 +21,7 @@
 <div id="toast" class="toast" hidden></div>
 <?= ag_head() ?>
 <script src="common.js?v=<?= filemtime(__DIR__ . "/common.js") ?>"></script>
+<script src="app_conciergerie.js?v=<?= filemtime(__DIR__ . "/app_conciergerie.js") ?>"></script>
 <script src="app.js?v=<?= filemtime(__DIR__ . "/app.js") ?>"></script>
 </body>
 </html>

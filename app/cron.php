@@ -11,4 +11,7 @@ x_rappels(); pr_auto(); sv_auto(); @file_put_contents(sv_dir() . '/.cron', (stri
 require_once __DIR__ . '/externe_lib.php'; sx_auto(240);
 // Changement de clé en cours : rechiffrement par lots.
 require_once __DIR__ . '/cle_lib.php'; cle_auto(120);
+// ORVIA : calendriers, mise sous scellé et effacement des fiches voyageurs, envoi des codes d'accès (au plus toutes les 30 min).
+require_once __DIR__ . '/conciergerie_lib.php';
+try { if (time() - (int)reglage('cz_cron_le', '0') >= 1800) { reglage_set('cz_cron_le', (string)time()); cz_cron(); } } catch (Throwable $e) { error_log('ORVIA tâche planifiée : ' . $e->getMessage()); }
 echo date('c'), " ok\n";
