@@ -33,6 +33,19 @@ $r = c('taxe_sejour', null, 'from=' . date('Y-m-01', strtotime('first day of las
 $airbnb = array_filter($r['json']['lignes'] ?? [], fn($l) => $l['source'] === 'airbnb');
 t('séjours Airbnb comptés à part quand la plateforme reverse', $airbnb && !array_filter($airbnb, fn($l) => !$l['plateforme']) && $r['json']['total']['plateforme'] > 0, substr($r['body'], 0, 200));
 
+echo "Linge et entretien\n";
+$r = c('intendance'); $I = $r['json'] ?? []; t('écran linge et entretien', $r['code'] === 200 && count($I['linge']['articles'] ?? []) === 7 && count($I['entretiens'] ?? []) === 5, substr($r['body'], 0, 300));
+$serv = array_values(array_filter($I['linge']['articles'] ?? [], fn($a) => $a['nom'] === 'Serviette de bain'))[0] ?? [];
+t('disponible = stock − sale − blanchisserie', $serv && $serv['disponible'] === $serv['stock'] - $serv['sale'] - $serv['blanchisserie'], json_encode($serv));
+$clim = array_values(array_filter($I['entretiens'] ?? [], fn($e) => $e['titre'] === 'Entretien de la climatisation'))[0] ?? [];
+t('entretien à échéance : mission créée et date suivante calculée', ($clim['mission']['date'] ?? '') === date('Y-m-d', strtotime('+3 days')) && $clim['prochaine'] === date('Y-m-d', strtotime('+93 days')), json_encode($clim));
+$nbAvant = count(c('missions', null, 'from=' . date('Y-m-d') . '&to=' . date('Y-m-d', strtotime('+10 days')))['json']['missions'] ?? []);
+$nbApres = count(c('missions', null, 'from=' . date('Y-m-d') . '&to=' . date('Y-m-d', strtotime('+10 days')))['json']['missions'] ?? []); t('pas de mission en double à chaque ouverture', $nbAvant === $nbApres && $nbAvant > 0);
+$envoi = array_values(array_filter($I['linge']['envois'] ?? [], fn($e) => $e['statut'] === 'envoye'))[0] ?? [];
+$aid = array_key_first($envoi['lignes'] ?? []); $r = c('linge_retour', ['id' => $envoi['id'] ?? 0, 'recus' => [$aid => $envoi['lignes'][$aid]['envoye'] - 1]]);
+t('retour de blanchisserie : la pièce manquante est notée', ($r['json']['ok'] ?? false) && array_sum($r['json']['pertes'] ?? []) === 1 && ($r['json']['cout'] ?? 0) > 0, $r['body']);
+$r = c('entretien_save', ['logement_id' => 0, 'titre' => 'X', 'prochaine' => date('Y-m-d')]); t('entretien sans logement refusé', $r['code'] === 400);
+
 echo "Équipe terrain\n";
 $r = c('equipe'); t('liste de l\'équipe avec activité et invitation WhatsApp', $r['code'] === 200 && count($r['json']['equipe'] ?? []) >= 3 && str_starts_with($r['json']['equipe'][0]['wa'] ?? '', 'https://wa.me/'), substr($r['body'], 0, 300));
 $r = c('equipe_save', ['prenom' => 'Salma', 'nom' => 'Idrissi', 'telephone' => '+212 6 61 22 33 44', 'ville' => 'Marrakech']); $qid = (int)($r['json']['id'] ?? 0); t('personne ajoutée à l\'équipe', $qid > 0, $r['body']);

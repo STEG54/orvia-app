@@ -1,6 +1,6 @@
 // ORVIA : administration de la conciergerie (Aujourd'hui, Logements, Réservations, Missions, Signalements, Propriétaires).
 const CZ = { ini:null, jour:null, logs:null, ed:null, res:null, resF:{ from:"", to:"", logement:"" }, det:null, mis:null, misF:{ from:"", to:"" }, mdet:null, inc:null, incS:"ouvert", prop:null, lien:null, decl:null, rap:null, rapF:null, plan:null, planD:"", avis:null, srv:null, srvEd:null };
-const CZ_SUBS = [["cz_jour","Aujourd'hui"],["cz_planning","Planning"],["cz_reservations","Réservations"],["cz_missions","Missions"],["cz_logements","Logements"],["cz_incidents","Signalements"],["cz_proprietaires","Propriétaires"],["cz_rapports","Rapports"],["cz_taxe","Taxe de séjour"],["cz_avis","Avis"],["cz_services","Services"],["cz_equipe","Équipe"]];
+const CZ_SUBS = [["cz_jour","Aujourd'hui"],["cz_planning","Planning"],["cz_reservations","Réservations"],["cz_missions","Missions"],["cz_logements","Logements"],["cz_incidents","Signalements"],["cz_proprietaires","Propriétaires"],["cz_rapports","Rapports"],["cz_taxe","Taxe de séjour"],["cz_avis","Avis"],["cz_services","Services"],["cz_intendance","Linge et entretien"],["cz_equipe","Équipe"]];
 async function czapi(action, body, query){
   const url = "conciergerie_api.php?action=" + action + (query ? "&" + query : "");
   const r = await fetch(url, body ? {method:"POST", credentials:"same-origin", headers:{"Content-Type":"application/json","X-Requested-With":"amaya"}, body:JSON.stringify(body)} : {credentials:"same-origin"});
@@ -28,6 +28,7 @@ async function czLoad(){
   if (G.sub === "cz_avis") CZ.avis = await czapi("avis");
   if (G.sub === "cz_services") CZ.srv = await czapi("services");
   if (G.sub === "cz_equipe") CZ.eq = await czapi("equipe");
+  if (G.sub === "cz_intendance") CZ.int = await czapi("intendance");
   if (G.sub === "cz_taxe") { if (!CZ.tsM) { const d = new Date(); d.setDate(0); CZ.tsM = czIso(d).slice(0, 7); } const [y, m] = CZ.tsM.split("-").map(Number); CZ.ts = await czapi("taxe_sejour", null, `from=${CZ.tsM}-01&to=${czIso(new Date(y, m, 0))}`); }
   if (G.sub === "cz_jour") CZ.jour = await czapi("aujourdhui");
   if (G.sub === "cz_reservations") CZ.res = (await czapi("reservations", null, `from=${CZ.resF.from}&to=${CZ.resF.to}&logement=${CZ.resF.logement}`)).reservations;
@@ -37,11 +38,11 @@ async function czLoad(){
   if (G.sub === "cz_proprietaires" && CZ.pfId) CZ.pf = await czapi("prop_fiche", null, "id=" + CZ.pfId);
 }
 function czView(){
-  const v = {cz_jour:czVJour, cz_logements:czVLogements, cz_reservations:czVRes, cz_missions:czVMis, cz_incidents:czVInc, cz_proprietaires:czVProp, cz_planning:czVPlan, cz_rapports:czVRap, cz_avis:czVAvis, cz_services:czVSrv, cz_equipe:czVEq, cz_taxe:czVTs}[G.sub];
+  const v = {cz_jour:czVJour, cz_logements:czVLogements, cz_reservations:czVRes, cz_missions:czVMis, cz_incidents:czVInc, cz_proprietaires:czVProp, cz_planning:czVPlan, cz_rapports:czVRap, cz_avis:czVAvis, cz_services:czVSrv, cz_equipe:czVEq, cz_taxe:czVTs, cz_intendance:czVInt}[G.sub];
   return v ? v() : "";
 }
 function czBind(){
-  const b = {cz_jour:czBJour, cz_logements:czBLogements, cz_reservations:czBRes, cz_missions:czBMis, cz_incidents:czBInc, cz_proprietaires:czBProp, cz_planning:czBPlan, cz_rapports:czBRap, cz_avis:czBAvis, cz_services:czBSrv, cz_equipe:czBEq, cz_taxe:czBTs}[G.sub];
+  const b = {cz_jour:czBJour, cz_logements:czBLogements, cz_reservations:czBRes, cz_missions:czBMis, cz_incidents:czBInc, cz_proprietaires:czBProp, cz_planning:czBPlan, cz_rapports:czBRap, cz_avis:czBAvis, cz_services:czBSrv, cz_equipe:czBEq, cz_taxe:czBTs, cz_intendance:czBInt}[G.sub];
   if (b) b();
 }
 const czRe = () => go("gestion");
@@ -660,4 +661,62 @@ function czBPf(){
   if ($("#prx")) $("#prx").onclick = () => { CZ.pfRap = null; czRe(); };
   if ($("#prgo")) $("#prgo").onclick = async () => { const R = CZ.pfRap;
     try { const r = await czapi("prop_rapport_envoyer", {id, type:"mensuel", from:R.from, to:R.to, note:$("#prn").value, sans_photos:!$("#prp").checked}); CZ.pfRap = null; czRe(); setTimeout(() => czNotif(r, "Rapport envoyé"), 400); } catch(e) { toast(e.message); } };
+}
+
+/* ---------- Linge et entretien ---------- */
+function czVInt(){
+  const I = CZ.int, L = I.linge, g = CZ.ini.gerer, logs = CZ.ini.logements.filter(l => l.actif), ag = CZ.ini.agents || [];
+  const A = L.articles, enCours = L.envois.filter(e => e.statut === "envoye"), faits = L.envois.filter(e => e.statut === "retourne");
+  const alerte = A.filter(a => a.alerte);
+  const ed = CZ.entEd;
+  const entForm = ed ? `<div class="card accent" style="display:grid;gap:10px"><h3 style="margin:0">${ed.id ? "Modifier l'entretien" : "Nouvel entretien programmé"}</h3>
+      ${ed.id ? "" : `<label>Partir d'un modèle<select id="emod"><option value="">Choisir…</option>${I.modeles.map(([t, f], i) => `<option value="${i}">${esc(t)} (tous les ${f} jours)</option>`).join("")}</select></label>`}
+      <div class="row3"><label>Logement<select id="elog">${logs.map(l => `<option value="${l.id}" ${+ed.logement_id === +l.id ? "selected" : ""}>${esc(l.nom)}</option>`).join("")}</select></label><label>Ce qu'il faut faire<input id="etit" value="${esc(ed.titre || "")}"></label><label>Tous les (jours)<input id="efr" type="number" min="1" max="730" value="${ed.frequence_jours || 90}"></label></div>
+      <div class="row3"><label>Prochaine fois<input id="epro" type="date" value="${esc(ed.prochaine || czIso(new Date()))}"></label><label>Heure<input id="eh" type="time" value="${esc(ed.heure || "10:00")}"></label>
+        <label>Intervenant<select id="eag"><option value="">Habituel du logement</option>${ag.map(a => `<option value="${a.id}" ${+ed.animatrice_id === +a.id ? "selected" : ""}>${esc(a.prenom + " " + a.nom)}</option>`).join("")}</select></label></div>
+      <div class="row3"><label>Ou artisan extérieur<input id="epr" value="${esc(ed.prestataire || "")}" placeholder="Froid Service, 06 …"></label><label style="grid-column:span 2">Consignes<input id="eco" value="${esc(ed.consignes || "")}"></label></div>
+      <div class="hint">La mission de maintenance est créée sept jours avant l'échéance, puis la date suivante est calculée.</div>
+      <div style="display:flex;gap:8px"><button class="primary" id="es">Enregistrer</button><button class="btn ghost" id="ex">Annuler</button>${ed.id ? `<button class="btn ghost" id="ed" style="margin-left:auto">Arrêter cet entretien</button>` : ""}</div></div>` : "";
+  return `${alerte.length ? `<div class="card accent"><b>Linge à surveiller :</b> ${alerte.map(a => `${esc(a.nom)} (${a.disponible} disponible${a.disponible > 1 ? "s" : ""} pour ${a.besoin} à poser dans les trois jours)`).join(" · ")}</div>` : ""}
+    <div class="card" style="display:grid;gap:10px"><div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center"><h2 style="margin:0">Linge</h2>
+      ${g ? `<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="primary" id="lenv">Envoyer à la blanchisserie</button><button class="btn" id="lart">Ajouter un article</button></div>` : ""}</div>
+      <div class="muted">Le linge sale est compté d'après les ménages faits et le kit de chaque logement : ${L.menages_depuis} ménage${L.menages_depuis > 1 ? "s" : ""} depuis le dernier envoi (${esc(czD(L.depuis))}). ${L.menages_3j} ménage${L.menages_3j > 1 ? "s" : ""} prévu${L.menages_3j > 1 ? "s" : ""} dans les trois jours.</div>
+      <div id="lenvf" hidden class="row3"><label>Blanchisserie<input id="lbl" value="${esc((L.envois[0] || {}).blanchisserie || "")}" placeholder="Pressing Gueliz"></label><label>Note<input id="lno"></label><div style="align-self:end"><button class="primary" id="lgo">Confirmer l'envoi</button></div></div>
+      <div id="lartf" hidden class="row3"><label>Article<input id="lan" placeholder="Drap housse 160"></label><label>Stock total<input id="las" type="number" min="0"></label><label>Prix de lavage (DH la pièce)<input id="lap" inputmode="decimal"></label><div><button class="primary" id="lags">Ajouter</button></div></div>
+      <div class="scroll"><table class="tbl"><thead><tr><th>Article</th><th>Stock</th><th>Sale, à envoyer</th><th>À la blanchisserie</th><th>Disponible</th><th>À poser sous 3 jours</th><th>Lavage</th></tr></thead><tbody>
+      ${A.map(a => `<tr><td>${esc(a.nom)}</td><td>${g ? `<input data-lst="${a.id}" type="number" min="0" value="${a.stock}" style="max-width:80px">` : a.stock}</td><td>${a.sale}</td><td>${a.blanchisserie}</td><td>${a.alerte ? `<span class="pill p-bad">${a.disponible}</span>` : `<b>${a.disponible}</b>`}</td><td>${a.besoin}</td><td>${czDH(a.prix_lavage)}</td></tr>`).join("") || `<tr><td colspan="7" class="muted">Ajoutez vos articles : draps, housses, taies, serviettes, tapis de bain, torchons.</td></tr>`}</tbody></table></div>
+      ${g && A.length ? `<div><button class="btn ghost" id="lsto">Enregistrer les stocks</button></div>` : ""}
+      ${enCours.map(e => `<div class="card" style="background:var(--pierre);display:grid;gap:8px"><b>Envoi du ${esc(czD(e.envoye_at))}${e.blanchisserie ? " · " + esc(e.blanchisserie) : ""}</b>
+        <div class="row3" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))">${Object.entries(e.lignes).map(([a, l]) => `<label>${esc(l.nom)} <span class="hint">envoyé ${l.envoye}</span><input data-rec="${e.id}" data-art="${a}" type="number" min="0" max="${l.envoye}" value="${l.envoye}"></label>`).join("")}</div>
+        ${g ? `<div class="row3"><label>Montant de la facture (DH) <span class="hint">vide = calculé</span><input data-rcout="${e.id}" inputmode="decimal"></label><div style="align-self:end"><button class="primary" data-ret="${e.id}">Enregistrer le retour</button></div></div>` : ""}</div>`).join("")}
+      ${faits.length ? `<details><summary>Envois revenus (${faits.length})</summary><table class="tbl"><thead><tr><th>Envoi</th><th>Retour</th><th>Pièces</th><th>Manquantes</th><th>Coût</th></tr></thead><tbody>
+        ${faits.map(e => { const l = Object.values(e.lignes), env = l.reduce((n, x) => n + +x.envoye, 0), rec = l.reduce((n, x) => n + +x.recu, 0); return `<tr><td>${esc(czD(e.envoye_at))}</td><td>${esc(czD(e.retour_at))}</td><td>${env}</td><td>${env - rec ? `<span class="pill p-warn">${env - rec}</span>` : "0"}</td><td>${czDH(e.cout)}</td></tr>`; }).join("")}</tbody></table></details>` : ""}</div>
+    ${A.length ? `<div class="card"><h3 style="margin:0 0 8px">Kit de linge par logement</h3><div class="hint" style="margin-bottom:8px">Ce qui est posé à chaque ménage. Il sert à compter le linge sale et le besoin des prochains jours.</div><div class="scroll"><table class="tbl"><thead><tr><th>Logement</th>${A.map(a => `<th>${esc(a.nom)}</th>`).join("")}</tr></thead><tbody>
+      ${logs.map(l => `<tr><td>${esc(l.nom)}</td>${A.map(a => `<td>${g ? `<input data-kit="${l.id}" data-ka="${a.id}" type="number" min="0" max="99" value="${(L.kits[l.id] || {})[a.id] || 0}" style="max-width:64px">` : (L.kits[l.id] || {})[a.id] || 0}</td>`).join("")}</tr>`).join("")}</tbody></table></div>
+      ${g ? `<button class="btn" id="lkit" style="margin-top:10px">Enregistrer les kits</button>` : ""}</div>` : ""}
+    <div class="card" style="display:grid;gap:10px"><div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center"><h2 style="margin:0">Entretien programmé</h2>${g ? `<button class="primary" id="enew">Programmer un entretien</button>` : ""}</div>
+      <div class="muted">Climatisation, piscine, désinsectisation, chauffe-eau : chaque entretien revient seul dans les missions, à la bonne date, et apparaît chez le propriétaire une fois fait.</div></div>
+    ${entForm}
+    <div class="card"><div class="scroll"><table class="tbl"><thead><tr><th>Logement</th><th>Entretien</th><th>Fréquence</th><th>Dernière fois</th><th>Intervention prévue</th><th>Suivante</th><th></th></tr></thead><tbody>
+      ${I.entretiens.map(e => `<tr><td>${esc(e.logement)}</td><td>${esc(e.titre)}${e.prestataire ? `<div class="hint">${esc(e.prestataire)}</div>` : ""}</td><td>tous les ${e.frequence_jours} jours</td><td>${e.derniere_faite ? esc(czD(e.derniere_faite)) : "–"}</td>
+        <td>${e.mission ? `${esc(czD(e.mission.date))} ${e.retard ? `<span class="pill p-bad">En retard</span>` : czSt(e.mission.statut)}` : "–"}</td><td>${esc(czD(e.prochaine))}</td><td>${g ? `<button class="btn" data-eed="${e.id}">Modifier</button>` : ""}</td></tr>`).join("") || `<tr><td colspan="7" class="muted">Aucun entretien programmé.</td></tr>`}</tbody></table></div></div>`;
+}
+function czBInt(){
+  const I = CZ.int, act = async (a, b, ok) => { try { const r = await czapi(a, b); toast(ok(r)); czRe(); } catch(e) { toast(e.message); } };
+  if ($("#lenv")) $("#lenv").onclick = () => { $("#lenvf").hidden = false; };
+  if ($("#lgo")) $("#lgo").onclick = () => act("linge_envoyer", {blanchisserie:$("#lbl").value, note:$("#lno").value}, () => "Envoi enregistré.");
+  if ($("#lart")) $("#lart").onclick = () => { $("#lartf").hidden = false; $("#lan").focus(); };
+  if ($("#lags")) $("#lags").onclick = () => act("linge_article_save", {nom:$("#lan").value, stock:$("#las").value, prix_lavage:$("#lap").value}, () => "Article ajouté.");
+  if ($("#lsto")) $("#lsto").onclick = async () => { try { for (const i of document.querySelectorAll("[data-lst]")) { const a = I.linge.articles.find(x => x.id === +i.dataset.lst); if (+i.value !== a.stock) await czapi("linge_article_save", {id:a.id, nom:a.nom, stock:i.value, prix_lavage:a.prix_lavage}); } toast("Stocks enregistrés."); czRe(); } catch(e) { toast(e.message); } };
+  if ($("#lkit")) $("#lkit").onclick = async () => { const K = {}; document.querySelectorAll("[data-kit]").forEach(i => { (K[i.dataset.kit] = K[i.dataset.kit] || {})[i.dataset.ka] = i.value; });
+    try { for (const [lid, kit] of Object.entries(K)) await czapi("linge_kit_save", {logement_id:+lid, kit}); toast("Kits enregistrés."); czRe(); } catch(e) { toast(e.message); } };
+  document.querySelectorAll("[data-ret]").forEach(b => b.onclick = () => { const id = b.dataset.ret, recus = {}; document.querySelectorAll(`[data-rec="${id}"]`).forEach(i => recus[i.dataset.art] = i.value);
+    act("linge_retour", {id:+id, recus, cout:($(`[data-rcout="${id}"]`) || {}).value || ""}, r => "Retour enregistré" + (Object.keys(r.pertes).length ? " : " + Object.entries(r.pertes).map(([n, q]) => q + " " + n).join(", ") + " manquant(s), retiré(s) du stock." : ", rien ne manque.")); });
+  if ($("#enew")) $("#enew").onclick = () => { CZ.entEd = {}; czRe(); };
+  document.querySelectorAll("[data-eed]").forEach(b => b.onclick = () => { CZ.entEd = Object.assign({}, I.entretiens.find(e => +e.id === +b.dataset.eed)); czRe(); });
+  if ($("#emod")) $("#emod").onchange = () => { const m = I.modeles[+$("#emod").value]; if (m) { $("#etit").value = m[0]; $("#efr").value = m[1]; } };
+  if ($("#ex")) $("#ex").onclick = () => { CZ.entEd = null; czRe(); };
+  const body = sup => ({id:CZ.entEd.id || 0, logement_id:$("#elog").value, titre:$("#etit").value, frequence_jours:$("#efr").value, prochaine:$("#epro").value, heure:$("#eh").value, animatrice_id:$("#eag").value, prestataire:$("#epr").value, consignes:$("#eco").value, supprimer:sup});
+  if ($("#es")) $("#es").onclick = async () => { try { const r = await czapi("entretien_save", body(false)); CZ.entEd = null; toast(r.missions_creees ? "Entretien programmé : mission créée." : "Entretien programmé."); czRe(); } catch(e) { toast(e.message); } };
+  if ($("#ed")) $("#ed").onclick = async () => { if (!confirm("Arrêter cet entretien ? Les missions déjà créées restent.")) return; try { await czapi("entretien_save", body(true)); CZ.entEd = null; czRe(); } catch(e) { toast(e.message); } };
 }

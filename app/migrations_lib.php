@@ -14,6 +14,7 @@ const MIGRATIONS = [
   6 => 'ORVIA : livret d\'arrivée (position fixée, repère, étapes en photos, Wi-Fi)',
   7 => 'ORVIA : questions des voyageurs et réponses de l\'assistant',
   8 => 'Keylia : messages, rapports et devis échangés avec les propriétaires',
+  9 => 'Keylia : linge (articles, kits, blanchisserie) et entretiens programmés',
 ];
 
 function mig_derniere(): int { return (int)array_key_last(MIGRATIONS); }
@@ -136,4 +137,20 @@ function mig_8(PDO $pdo): void {
     description TEXT NULL, montant DECIMAL(10,2) NOT NULL DEFAULT 0, prestataire VARCHAR(160) NOT NULL DEFAULT '', photos TEXT NULL, statut VARCHAR(10) NOT NULL DEFAULT 'envoye', reponse TEXT NULL,
     decide_at DATETIME DEFAULT NULL, paiement VARCHAR(10) NOT NULL DEFAULT '', regle_at DATETIME DEFAULT NULL, par VARCHAR(120) NOT NULL DEFAULT '', created_at DATETIME NOT NULL,
     KEY proprietaire_id (proprietaire_id), KEY statut (statut)) $E");
+}
+
+function mig_9(PDO $pdo): void {
+  $p = function_exists('demo_prefixe') ? demo_prefixe() : ''; $E = 'ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci';
+  $pdo->exec("CREATE TABLE IF NOT EXISTS `{$p}c_linge_articles` (id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY, nom VARCHAR(80) NOT NULL, stock INT NOT NULL DEFAULT 0, prix_lavage DECIMAL(8,2) NOT NULL DEFAULT 0,
+    ordre SMALLINT NOT NULL DEFAULT 0, actif TINYINT(1) NOT NULL DEFAULT 1, created_at DATETIME NOT NULL) $E");
+  $pdo->exec("CREATE TABLE IF NOT EXISTS `{$p}c_linge_kits` (logement_id INT UNSIGNED NOT NULL, article_id INT UNSIGNED NOT NULL, qte SMALLINT UNSIGNED NOT NULL DEFAULT 0, PRIMARY KEY (logement_id, article_id)) $E");
+  // Un envoi à la blanchisserie : le linge sale des ménages faits jusqu'à son départ ; au retour, les quantités reçues (l'écart = pertes, retirées du stock).
+  $pdo->exec("CREATE TABLE IF NOT EXISTS `{$p}c_linge_envois` (id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY, blanchisserie VARCHAR(120) NOT NULL DEFAULT '', envoye_at DATETIME NOT NULL, retour_at DATETIME DEFAULT NULL,
+    statut VARCHAR(10) NOT NULL DEFAULT 'envoye', lignes TEXT NOT NULL, cout DECIMAL(10,2) NOT NULL DEFAULT 0, note VARCHAR(300) NOT NULL DEFAULT '', par VARCHAR(120) NOT NULL DEFAULT '') $E");
+  // Entretien programmé : une tâche récurrente par logement, qui crée sa mission de maintenance à l'approche de l'échéance.
+  $pdo->exec("CREATE TABLE IF NOT EXISTS `{$p}c_entretiens` (id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY, logement_id INT UNSIGNED NOT NULL, titre VARCHAR(160) NOT NULL, frequence_jours SMALLINT UNSIGNED NOT NULL DEFAULT 90,
+    prochaine DATE NOT NULL, heure VARCHAR(5) NOT NULL DEFAULT '10:00', animatrice_id INT UNSIGNED DEFAULT NULL, prestataire VARCHAR(160) NOT NULL DEFAULT '', consignes TEXT NULL, actif TINYINT(1) NOT NULL DEFAULT 1,
+    derniere_mission_id INT UNSIGNED DEFAULT NULL, created_at DATETIME NOT NULL, KEY logement_id (logement_id), KEY prochaine (prochaine)) $E");
+  $st = $pdo->prepare("SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = 'entretien_id'"); $st->execute([$p . 'c_missions']);
+  if (!(int)$st->fetchColumn()) $pdo->exec("ALTER TABLE `{$p}c_missions` ADD COLUMN entretien_id INT UNSIGNED DEFAULT NULL");
 }

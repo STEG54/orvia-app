@@ -149,4 +149,22 @@ function cz_demo_seed(): void {
   if ($mv) { $m = cz_mission((int)$mv); $etat = cz_etat($m); $pc = []; foreach (cz_checklist($m) as $i => $x) $pc[] = ['piece' => $x['piece'], 'ok' => !empty($etat[$i]['ok']), 'photos' => (array)($etat[$i]['photos'] ?? [])];
     $irp->execute([$P0, 'visite', 'Ménage et contrôle · Villa Palmeraie · ' . date('d/m/Y', strtotime($m['date'])), $m['date'], $m['date'], $mv, 'Logement remis en état après le départ des voyageurs. Rien à signaler.',
       json_encode(['logement' => $m['logement'], 'type' => 'menage', 'date' => $m['date'], 'fin' => $m['fin_at'], 'pieces' => $pc], JSON_UNESCAPED_UNICODE), $dir, null, $m['date'] . ' 14:00:00']); }
+  // Linge : articles, kits par logement, un envoi revenu (deux serviettes manquantes) et un envoi en cours.
+  mig_9($pdo); $ia = $pdo->prepare("INSERT INTO c_linge_articles (nom, stock, prix_lavage, ordre, created_at) VALUES (?,?,?,?,?)"); $AR = [];
+  foreach ([['Drap double', 28, 12], ['Housse de couette', 22, 15], ['Taie d\'oreiller', 44, 4], ['Serviette de bain', 56, 6], ['Serviette de main', 40, 4], ['Tapis de bain', 14, 5], ['Torchon', 24, 3]] as $o => [$n, $st, $px]) { $ia->execute([$n, $st, $px, $o, $now]); $AR[] = (int)$pdo->lastInsertId(); }
+  $ik = $pdo->prepare("INSERT INTO c_linge_kits (logement_id, article_id, qte) VALUES (?,?,?)");
+  foreach ([[3, 3, 6, 8, 6, 2, 2], [2, 2, 4, 4, 4, 1, 1], [1, 1, 2, 4, 2, 1, 1], [4, 4, 8, 10, 8, 2, 2], [1, 1, 2, 4, 2, 1, 1]] as $li => $q) foreach ($q as $k => $n) $ik->execute([$LID[$li], $AR[$k], $n]);
+  $lg = fn(array $q, bool $r) => json_encode(array_combine($AR, array_map(fn($k) => ['nom' => ['Drap double', 'Housse de couette', 'Taie d\'oreiller', 'Serviette de bain', 'Serviette de main', 'Tapis de bain', 'Torchon'][$k], 'envoye' => $q[$k], 'recu' => $r ? ($k === 3 ? $q[$k] - 2 : $q[$k]) : null, 'prix' => [12, 15, 4, 6, 4, 5, 3][$k]], array_keys($q))), JSON_UNESCAPED_UNICODE);
+  $ie = $pdo->prepare("INSERT INTO c_linge_envois (blanchisserie, envoye_at, retour_at, statut, lignes, cout, par) VALUES (?,?,?,?,?,?,?)");
+  $ie->execute(['Pressing Gueliz', demo_j(-10) . ' 15:00:00', demo_j(-8) . ' 11:00:00', 'retourne', $lg([18, 14, 36, 42, 30, 9, 9], true), 963, $dir]);
+  $pdo->prepare("UPDATE c_linge_articles SET stock = stock - 2 WHERE id = ?")->execute([$AR[3]]);
+  $ie->execute(['Pressing Gueliz', demo_j(-4) . ' 15:00:00', null, 'envoye', $lg([12, 10, 22, 28, 20, 6, 6], false), 0, $dir]);
+  // Entretiens programmés : la climatisation de la villa tombe dans trois jours, la piscine chaque semaine.
+  $ient = $pdo->prepare("INSERT INTO c_entretiens (logement_id, titre, frequence_jours, prochaine, heure, animatrice_id, prestataire, consignes, created_at) VALUES (?,?,?,?,?,?,?,?,?)");
+  $ient->execute([$LID[0], 'Entretien de la climatisation', 90, demo_j(3), '10:00', null, 'Froid Service, Marrakech', 'Nettoyer les filtres des quatre splits, vérifier la chambre d\'amis (bruit signalé)', $now]);
+  $ient->execute([$LID[0], 'Nettoyage de la piscine', 7, demo_j(1), '09:00', $E[0], '', 'Épuisette, robot, contrôle du pH et du chlore', $now]);
+  $ient->execute([$LID[3], 'Nettoyage de la piscine', 7, demo_j(2), '09:00', $E[1], '', 'Épuisette, robot, contrôle du pH et du chlore', $now]);
+  $ient->execute([$LID[1], 'Désinsectisation', 90, demo_j(40), '11:00', null, 'Hygiène Services Maroc', 'Patio et cuisine', $now]);
+  $ient->execute([$LID[2], 'Détartrage du chauffe-eau', 365, demo_j(120), '10:00', $E[1], '', '', $now]);
+  cz_entretiens_generer();
 }

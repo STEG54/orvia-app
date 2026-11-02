@@ -85,12 +85,12 @@ function czMis(){
     <div class="kt-next kt-sum"><span class="mt"><b>${esc(m.heure || "–")}</b><span class="chip" style="--c:${CZ_TYPE_C[m.type] || "#5A5F5B"}">${esc(czt(fini ? "faite" : m.statut))}</span></span>
       ${nP ? `<span class="kt-prog"><i style="width:${pc}%"></i></span><span class="pgl">${nOk} ${czt("sur")} ${nP} ${czt("etapes")}</span>` : ""}
       ${V.carte && V.carte.maps ? `<span class="kt-nav"><a class="mp" href="${esc(V.carte.maps)}" target="_blank" rel="noopener">📍 ${czt("maps")}</a><a class="mp" href="${esc(V.carte.waze)}" target="_blank" rel="noopener">Waze</a></span>` : ""}</div>
-    ${m.note || m.acces || m.kit_linge || V.code || (V.etapes || []).length ? `<div class="kt-card">
+    ${m.note || m.acces || m.kit_linge || (m.kit || []).length || V.code || (V.etapes || []).length ? `<div class="kt-card">
       ${m.note ? `<div class="kt-note"><b>${czt("consigne")}</b><div style="white-space:pre-line;margin-top:4px">${esc(m.note)}</div></div>` : ""}
       ${V.code ? `<div class="kt-code"><span>${czt("code")}</span><b>${esc(V.code)}</b>${V.serrure ? `<small>${esc(V.serrure)}</small>` : ""}</div>` : ""}
       ${m.acces ? `<details><summary><b>${czt("acces")}</b></summary><div style="white-space:pre-line">${esc(m.acces)}</div></details>` : ""}
       ${(V.etapes || []).length ? `<details><summary><b>${czt("chemin")}</b></summary>${V.etapes.map((e, i) => `<div style="margin-top:8px">${e.photo ? `<img src="${esc(e.photo)}" alt="" loading="lazy" style="width:100%;max-height:260px;object-fit:cover;display:block;border-radius:10px">` : ""}<div>${i + 1}. ${esc(e.texte)}</div></div>`).join("")}</details>` : ""}
-      ${m.kit_linge ? `<div><b>${czt("linge")} :</b> ${esc(m.kit_linge)}</div>` : ""}</div>` : ""}
+      ${(m.kit || []).length ? `<div><b>${czt("linge")} :</b><div class="kt-kit">${m.kit.map(([n, q]) => `<span><b>${q}</b> ${esc(n)}</span>`).join("")}</div></div>` : m.kit_linge ? `<div><b>${czt("linge")} :</b> ${esc(m.kit_linge)}</div>` : ""}</div>` : ""}
     ${fini ? "" : m.commence ? "" : `<div class="kt-card"><button class="primary kt-big" id="czgo">${czt("jarrive")}</button><div class="hint">${czt("pos")}</div></div>`}
     <div class="kt-list">${m.pieces.map((p, i) => `<div class="kt-piece ${p.ok ? "ok" : ""}"><div class="kt-row nb">${p.ok ? `<span class="kt-ic ok">✓</span>` : `<span class="kt-ic wait"></span>`}
         <span class="tx"><b>${esc(p.piece)}</b><small${p.ok ? "" : ' class="todo"'}>${p.ok ? `${p.urls.length} ${czt("nphotos")}${fini ? "" : ` · <a href="#" class="kt-re" data-ok="${i}" data-v="0">${czt("rouvrir")}</a>`}` : `${czt("aprendre")} ${Math.max(0, p.photos - p.urls.length)} ${czt("nphotos")}${p.urls.length ? ` · ${p.urls.length}/${p.photos}` : ""}`}</small></span>

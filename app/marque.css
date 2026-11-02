@@ -131,3 +131,4 @@ body:has(.demo-ruban) #view{padding-bottom:96px}
 .pf-b{padding:10px 12px;border-radius:14px;background:#EEF0F2;text-align:start}.pf-m.nous .pf-b{background:var(--vert);color:#fff}
 .pf-ph{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}.pf-ph img{width:72px;height:72px;object-fit:cover;border-radius:8px;display:block}
 .pf-d{border-top:1px solid var(--line);padding-top:8px}
+.kt-kit{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}.kt-kit span{background:var(--pierre);border-radius:999px;padding:4px 10px;font-size:14px}.kt-kit b{color:var(--vert)}

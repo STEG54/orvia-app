@@ -719,3 +719,61 @@ function cz_prop_rapport_contenu(int $pid, string $from, string $to, int $nbPhot
 }
 /** Un réglage de la société (raison sociale, banque, RIB…) lu sans charger le module de gestion. */
 function g_reglage_val(string $k): string { try { $st = db()->prepare("SELECT valeur FROM g_reglages WHERE cle = ?"); $st->execute([$k]); return trim((string)$st->fetchColumn()); } catch (Throwable $e) { return ''; } }
+
+/* ---------- Linge ----------
+   Le linge sale se déduit des ménages faits (kit de chaque logement) ; il part à la blanchisserie par envois, revient compté. */
+function cz_linge_etat(): array {
+  $A = db()->query("SELECT id, nom, stock, prix_lavage, ordre FROM c_linge_articles WHERE actif = 1 ORDER BY ordre, nom")->fetchAll();
+  $K = []; foreach (db()->query("SELECT logement_id, article_id, qte FROM c_linge_kits WHERE qte > 0")->fetchAll() as $k) $K[(int)$k['logement_id']][(int)$k['article_id']] = (int)$k['qte'];
+  $dernier = db()->query("SELECT MAX(envoye_at) FROM c_linge_envois")->fetchColumn() ?: date('Y-m-d H:i:s', strtotime('-14 days'));
+  $sale = []; $nbM = 0; $st = db()->prepare("SELECT logement_id FROM c_missions WHERE type = 'menage' AND statut = 'faite' AND COALESCE(fin_at, CONCAT(date, ' 12:00:00')) > ?"); $st->execute([$dernier]);
+  foreach ($st->fetchAll(PDO::FETCH_COLUMN) as $lid) { $nbM++; foreach ($K[(int)$lid] ?? [] as $a => $q) $sale[$a] = ($sale[$a] ?? 0) + $q; }
+  $besoin = []; $st = db()->prepare("SELECT logement_id FROM c_missions WHERE type = 'menage' AND statut <> 'faite' AND date BETWEEN ? AND ?"); $st->execute([date('Y-m-d'), date('Y-m-d', strtotime('+3 days'))]);
+  $nbB = 0; foreach ($st->fetchAll(PDO::FETCH_COLUMN) as $lid) { $nbB++; foreach ($K[(int)$lid] ?? [] as $a => $q) $besoin[$a] = ($besoin[$a] ?? 0) + $q; }
+  $E = db()->query("SELECT * FROM c_linge_envois ORDER BY id DESC LIMIT 20")->fetchAll(); $chez = [];
+  foreach ($E as &$e) { $e['lignes'] = json_decode((string)$e['lignes'], true) ?: []; if ($e['statut'] === 'envoye') foreach ($e['lignes'] as $a => $l) $chez[(int)$a] = ($chez[(int)$a] ?? 0) + (int)$l['envoye']; } unset($e);
+  $art = array_map(function ($a) use ($sale, $chez, $besoin) { $i = (int)$a['id']; $s = $sale[$i] ?? 0; $c = $chez[$i] ?? 0; $b = $besoin[$i] ?? 0; $d = (int)$a['stock'] - $s - $c;
+    return ['id' => $i, 'nom' => $a['nom'], 'stock' => (int)$a['stock'], 'prix_lavage' => (float)$a['prix_lavage'], 'sale' => $s, 'blanchisserie' => $c, 'disponible' => $d, 'besoin' => $b, 'alerte' => $d < $b]; }, $A);
+  return ['articles' => $art, 'kits' => $K, 'envois' => $E, 'depuis' => $dernier, 'menages_depuis' => $nbM, 'menages_3j' => $nbB];
+}
+function cz_linge_envoyer(string $blanchisserie, string $note): int {
+  $L = []; foreach (cz_linge_etat()['articles'] as $a) if ($a['sale'] > 0) $L[$a['id']] = ['nom' => $a['nom'], 'envoye' => $a['sale'], 'recu' => null, 'prix' => $a['prix_lavage']];
+  if (!$L) throw new RuntimeException('Pas de linge sale à envoyer depuis le dernier envoi.');
+  db()->prepare("INSERT INTO c_linge_envois (blanchisserie, envoye_at, lignes, note, par) VALUES (?,?,?,?,?)")->execute([clip($blanchisserie, 120), now(), json_encode($L, JSON_UNESCAPED_UNICODE), clip($note, 300), admin_nom()]);
+  return (int)db()->lastInsertId();
+}
+/** Retour de blanchisserie : quantités reçues ; l'écart (pertes, linge abîmé gardé par la blanchisserie) est retiré du stock. Coût = reçu × prix de lavage, sauf montant saisi. */
+function cz_linge_retour(int $id, array $recus, ?float $cout): array {
+  $st = db()->prepare("SELECT * FROM c_linge_envois WHERE id = ? AND statut = 'envoye'"); $st->execute([$id]); $e = $st->fetch() ?: throw new RuntimeException('Envoi introuvable ou déjà revenu.');
+  $L = json_decode((string)$e['lignes'], true) ?: []; $pertes = []; $c = 0.0;
+  foreach ($L as $a => &$l) { $r = max(0, min((int)$l['envoye'], (int)($recus[$a] ?? $l['envoye']))); $l['recu'] = $r; $c += $r * (float)$l['prix'];
+    if ($r < $l['envoye']) { $pertes[$l['nom']] = $l['envoye'] - $r; db()->prepare("UPDATE c_linge_articles SET stock = GREATEST(0, stock - ?) WHERE id = ?")->execute([$l['envoye'] - $r, (int)$a]); } } unset($l);
+  db()->prepare("UPDATE c_linge_envois SET statut = 'retourne', retour_at = ?, lignes = ?, cout = ? WHERE id = ?")->execute([now(), json_encode($L, JSON_UNESCAPED_UNICODE), round($cout ?? $c, 2), $id]);
+  return ['pertes' => $pertes, 'cout' => round($cout ?? $c, 2)];
+}
+
+/* ---------- Entretien programmé ---------- */
+const CZ_ENTRETIENS_MODELES = [['Entretien de la climatisation', 90], ['Nettoyage de la piscine', 7], ['Désinsectisation', 90], ['Détartrage du chauffe-eau', 365], ['Contrôle de l\'extincteur', 365], ['Jardin et arrosage', 14], ['Literie retournée et protège-matelas lavés', 90]];
+/** Crée les missions de maintenance des entretiens qui arrivent à échéance dans les 7 jours, puis avance leur prochaine date. Sans effet si rien n'est dû. */
+function cz_entretiens_generer(): int {
+  $n = 0; $lim = date('Y-m-d', strtotime('+7 days'));
+  $st = db()->prepare("SELECT e.*, l.nom FROM c_entretiens e JOIN c_logements l ON l.id = e.logement_id WHERE e.actif = 1 AND l.actif = 1 AND e.prochaine <= ?"); $st->execute([$lim]);
+  foreach ($st->fetchAll() as $e) {
+    $note = $e['titre'] . ($e['prestataire'] !== '' ? ' · ' . $e['prestataire'] : '') . (trim((string)$e['consignes']) !== '' ? "\n" . $e['consignes'] : '');
+    db()->prepare("INSERT INTO c_missions (logement_id, type, date, heure, animatrice_id, statut, etat, note, entretien_id, created_at) VALUES (?, 'maintenance', ?, ?, ?, 'a_faire', '[]', ?, ?, ?)")
+      ->execute([$e['logement_id'], max($e['prochaine'], date('Y-m-d')), $e['heure'], $e['animatrice_id'] ?: null, $note, $e['id'], now()]);
+    $mid = (int)db()->lastInsertId(); if (!$e['animatrice_id'] && $e['prestataire'] === '') cz_attribuer($mid);
+    $suiv = $e['prochaine']; do { $suiv = date('Y-m-d', strtotime($suiv . ' +' . max(1, (int)$e['frequence_jours']) . ' days')); } while ($suiv <= $lim);
+    db()->prepare("UPDATE c_entretiens SET prochaine = ?, derniere_mission_id = ? WHERE id = ?")->execute([$suiv, $mid, $e['id']]); $n++;
+  }
+  return $n;
+}
+function cz_entretiens_liste(): array {
+  cz_entretiens_generer();
+  return array_map(function ($e) { $s = db()->prepare("SELECT date, statut FROM c_missions WHERE entretien_id = ? ORDER BY date DESC LIMIT 1"); $s->execute([$e['id']]); $m = $s->fetch() ?: null;
+    $f = db()->prepare("SELECT MAX(date) FROM c_missions WHERE entretien_id = ? AND statut = 'faite'"); $f->execute([$e['id']]);
+    return $e + ['mission' => $m, 'derniere_faite' => $f->fetchColumn() ?: null, 'retard' => $m && $m['statut'] !== 'faite' && $m['date'] < date('Y-m-d')]; },
+    db()->query("SELECT e.id, e.logement_id, l.nom logement, e.titre, e.frequence_jours, e.prochaine, e.heure, e.animatrice_id, e.prestataire, e.consignes, e.actif FROM c_entretiens e JOIN c_logements l ON l.id = e.logement_id WHERE e.actif = 1 ORDER BY l.nom, e.titre")->fetchAll());
+}
+/** Kit de linge d'un logement, pour l'intervenant : [[nom, quantité]…]. */
+function cz_kit_logement(int $lid): array { try { $st = db()->prepare("SELECT a.nom, k.qte FROM c_linge_kits k JOIN c_linge_articles a ON a.id = k.article_id WHERE k.logement_id = ? AND k.qte > 0 AND a.actif = 1 ORDER BY a.ordre, a.nom"); $st->execute([$lid]); return array_map(fn($r) => [$r['nom'], (int)$r['qte']], $st->fetchAll()); } catch (Throwable $e) { return []; } }

@@ -58,6 +58,39 @@ try {
         'admins' => db()->query("SELECT id, nom FROM admins WHERE actif = 1 ORDER BY nom")->fetchAll(), 'statuts' => CZ_MISSION_STATUTS, 'titulaire' => est_titulaire(), 'gerer' => can('tout'),
         'reglages' => ['cz_conservation_jours' => cz_conservation_jours(), 'cz_copie_piece' => cz_copie_piece_demandee() ? '1' : '0', 'cz_code_auto' => reglage('cz_code_auto', '1'), 'cz_heure_menage' => reglage('cz_heure_menage', '11:00'), 'cz_ia' => reglage('cz_ia', '1'), 'ia_dispo' => defined('ORVIA_IA_CLE') && ORVIA_IA_CLE !== '']]);
 
+    case 'intendance':
+      c_admin(); c_out(['linge' => cz_linge_etat(), 'entretiens' => cz_entretiens_liste(), 'modeles' => CZ_ENTRETIENS_MODELES]);
+
+    case 'linge_article_save':
+      c_admin('tout'); $id = (int)($in['id'] ?? 0); $nom = clip($in['nom'] ?? '', 80); if ($nom === '') c_fail('Indiquez le nom de l\'article.');
+      $v = [$nom, max(0, (int)($in['stock'] ?? 0)), max(0, (float)(montant($in['prix_lavage'] ?? 0) ?? 0))];
+      if ($id) { $v[] = empty($in['supprimer']) ? 1 : 0; $v[] = $id; db()->prepare("UPDATE c_linge_articles SET nom = ?, stock = ?, prix_lavage = ?, actif = ? WHERE id = ?")->execute($v); }
+      else { $v[] = now(); db()->prepare("INSERT INTO c_linge_articles (nom, stock, prix_lavage, created_at) VALUES (?,?,?,?)")->execute($v); $id = (int)db()->lastInsertId(); }
+      c_out(['ok' => true, 'id' => $id]);
+
+    case 'linge_kit_save':
+      c_admin('tout'); $lid = (int)($in['logement_id'] ?? 0); $st = db()->prepare("SELECT id FROM c_logements WHERE id = ?"); $st->execute([$lid]); $st->fetchColumn() ?: c_fail('Logement introuvable.', 404);
+      $up = db()->prepare("REPLACE INTO c_linge_kits (logement_id, article_id, qte) VALUES (?,?,?)");
+      foreach ((array)($in['kit'] ?? []) as $a => $q) $up->execute([$lid, (int)$a, max(0, min(99, (int)$q))]);
+      c_out(['ok' => true]);
+
+    case 'linge_envoyer':
+      c_admin('tout'); try { $id = cz_linge_envoyer((string)($in['blanchisserie'] ?? ''), (string)($in['note'] ?? '')); } catch (RuntimeException $e) { c_fail($e->getMessage()); } c_out(['ok' => true, 'id' => $id]);
+
+    case 'linge_retour':
+      c_admin('tout'); $c = trim((string)($in['cout'] ?? '')) === '' ? null : (float)(montant($in['cout']) ?? 0);
+      try { $r = cz_linge_retour((int)($in['id'] ?? 0), (array)($in['recus'] ?? []), $c); } catch (RuntimeException $e) { c_fail($e->getMessage()); } c_out(['ok' => true] + $r);
+
+    case 'entretien_save':
+      c_admin('tout'); $id = (int)($in['id'] ?? 0); $lid = (int)($in['logement_id'] ?? 0); $titre = clip($in['titre'] ?? '', 160);
+      $st = db()->prepare("SELECT id FROM c_logements WHERE id = ?"); $st->execute([$lid]); $st->fetchColumn() ?: c_fail('Choisissez le logement.');
+      if ($titre === '') c_fail('Indiquez ce qu\'il faut faire.');
+      $fr = max(1, min(730, (int)($in['frequence_jours'] ?? 90))); $pro = c_date($in['prochaine'] ?? ''); $h = preg_match('/^\d{2}:\d{2}$/', (string)($in['heure'] ?? '')) ? $in['heure'] : '10:00';
+      $ag = (int)($in['animatrice_id'] ?? 0) ?: null; $v = [$lid, $titre, $fr, $pro, $h, $ag, clip($in['prestataire'] ?? '', 160), clip($in['consignes'] ?? '', 2000)];
+      if ($id) { $v[] = empty($in['supprimer']) ? 1 : 0; $v[] = $id; db()->prepare("UPDATE c_entretiens SET logement_id = ?, titre = ?, frequence_jours = ?, prochaine = ?, heure = ?, animatrice_id = ?, prestataire = ?, consignes = ?, actif = ? WHERE id = ?")->execute($v); }
+      else { $v[] = now(); db()->prepare("INSERT INTO c_entretiens (logement_id, titre, frequence_jours, prochaine, heure, animatrice_id, prestataire, consignes, created_at) VALUES (?,?,?,?,?,?,?,?,?)")->execute($v); $id = (int)db()->lastInsertId(); }
+      $n = cz_entretiens_generer(); c_out(['ok' => true, 'id' => $id, 'missions_creees' => $n]);
+
     case 'taxe_sejour':
       c_admin(); c_out(cz_taxe_sejour(c_date($_GET['from'] ?? ''), c_date($_GET['to'] ?? '')) + ['agence' => AG_NOM]);
 
@@ -93,7 +126,7 @@ try {
       c_out(['ok' => true, 'id' => $id]);
 
     case 'aujourdhui':
-      c_admin(); $j = date('Y-m-d'); $d = date('Y-m-d', strtotime('+1 day'));
+      c_admin(); cz_entretiens_generer(); $j = date('Y-m-d'); $d = date('Y-m-d', strtotime('+1 day'));
       $st = db()->prepare("SELECT r.*, l.nom logement, l.ville FROM c_reservations r JOIN c_logements l ON l.id = r.logement_id WHERE r.statut = 'confirmee' AND r.arrivee BETWEEN ? AND ? ORDER BY r.arrivee, l.nom"); $st->execute([$j, $d]);
       $arr = array_map(fn($r) => ['id' => (int)$r['id'], 'logement' => $r['logement'], 'ville' => $r['ville'], 'arrivee' => $r['arrivee'], 'depart' => $r['depart'], 'source' => $r['source'], 'libelle' => $r['libelle'],
         'code_envoye' => $r['code_envoye_at'], 'fv' => cz_feu_vert($r), 'lien' => cz_lien_voyageur($r), 'heure' => cz_heure_arrivee($r), 'heure_connue' => $r['arrivee_heure'] !== '', 'vol' => $r['vol'], 'mode' => $r['arrivee_mode'],
@@ -202,7 +235,7 @@ try {
       c_out(cz_envoyer_code((int)($in['id'] ?? 0), $forcer));
 
     case 'missions':
-      c_admin(); $from = c_date($_GET['from'] ?? date('Y-m-d')); $to = c_date($_GET['to'] ?? date('Y-m-d', strtotime('+7 days')));
+      c_admin(); cz_entretiens_generer(); $from = c_date($_GET['from'] ?? date('Y-m-d')); $to = c_date($_GET['to'] ?? date('Y-m-d', strtotime('+7 days')));
       $st = db()->prepare("SELECT m.id, m.logement_id, m.reservation_id, m.type, m.date, m.heure, m.statut, m.animatrice_id, m.note, m.fin_at, l.nom logement, l.ville, CONCAT(a.prenom, ' ', a.nom) agent FROM c_missions m JOIN c_logements l ON l.id = m.logement_id LEFT JOIN animatrices a ON a.id = m.animatrice_id WHERE m.date BETWEEN ? AND ? ORDER BY m.date, m.heure, l.nom");
       $st->execute([$from, $to]); c_out(['missions' => $st->fetchAll()]);
 
@@ -339,7 +372,7 @@ try {
       c_out(cz_rapport($f, $t, $par));
 
     case 'planning':
-      c_admin(); c_out(cz_planning(c_date($_GET['date'] ?? date('Y-m-d'))));
+      c_admin(); cz_entretiens_generer(); c_out(cz_planning(c_date($_GET['date'] ?? date('Y-m-d'))));
 
     case 'tache_save':
       // Mission ou tâche du gestionnaire (accueil, visite, transfert…), attribuée à un agent ou à un gestionnaire.
@@ -391,7 +424,7 @@ try {
       foreach (cz_checklist($m) as $i => $p) $P[] = $p + ['ok' => !empty($etat[$i]['ok']), 'urls' => array_map(fn($f) => photo_url($f, true), (array)($etat[$i]['photos'] ?? []))];
       $jour = $m['date'] <= date('Y-m-d', strtotime('+1 day'));
       c_out(['mission' => ['id' => (int)$m['id'], 'logement' => $m['logement'], 'adresse' => $m['adresse'], 'ville' => $m['ville'], 'type' => $m['type'], 'date' => $m['date'], 'heure' => $m['heure'], 'statut' => $m['statut'],
-        'note' => $m['note'], 'kit_linge' => $m['kit_linge'], 'acces' => $jour ? cz_dec($m['acces_enc']) : '', 'pieces' => $P, 'manques' => cz_mission_manques($m),
+        'note' => $m['note'], 'kit_linge' => $m['kit_linge'], 'kit' => cz_kit_logement((int)$m['logement_id']), 'acces' => $jour ? cz_dec($m['acces_enc']) : '', 'pieces' => $P, 'manques' => cz_mission_manques($m),
         'commence' => $m['debut_at'] !== null, 'agent' => $m['agent'], 'agence' => AG_NOM, 'livret' => cz_livret($m, $jour)]]);
 
     case 'mission_debut':
