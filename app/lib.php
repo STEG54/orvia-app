@@ -55,7 +55,7 @@ function demo_bloquer(string $action): void {
 }
 /** Thèmes proposés (Réglages) : fond, encre, filets, texte secondaire, couleur « pop » du dégradé. La couleur principale reste celle de l'agence. */
 const AG_THEMES = [
-  'orvia' => ['nom' => 'Keylia (noir et blanc)', 'bg' => '#F4F3F1', 'ink' => '#0F0F0F', 'line' => '#E4E2DE', 'muted' => '#6A6864', 'pop' => '#0F0F0F', 'defaut' => '#0F0F0F'],
+  'orvia' => ['nom' => 'Keylia (bleu nuit et or)', 'bg' => '#EFEDE8', 'ink' => '#1C1F1D', 'line' => '#DCD9D1', 'muted' => '#5A5F5B', 'pop' => '#C6A15B', 'defaut' => '#1C2B45'],
   'aurore' => ['nom' => 'Aurore (violet et rose)', 'bg' => '#F6F5FF', 'ink' => '#16123A', 'line' => '#E6E3F7', 'muted' => '#6E6A8F', 'pop' => '#FF5C8A', 'defaut' => '#6A4BFF'],
   'lagon' => ['nom' => 'Lagon (turquoise et mangue)', 'bg' => '#F1FAF8', 'ink' => '#0F2A2E', 'line' => '#D9EDEA', 'muted' => '#5D7A7C', 'pop' => '#FFB020', 'defaut' => '#0EA5A0'],
   'cobalt' => ['nom' => 'Cobalt (bleu et corail)', 'bg' => '#F3F6FF', 'ink' => '#0C1A3D', 'line' => '#E0E6F7', 'muted' => '#5F6B8A', 'pop' => '#FF7A45', 'defaut' => '#2F5BFF'],

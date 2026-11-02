@@ -5,13 +5,15 @@ const CZT = {
     a_faire:"À faire", en_cours:"En cours", faite:"Terminée", refusee:"À reprendre", ouvrir:"Ouvrir", retour:"‹ Mes missions", acces:"Accès", linge:"Linge à poser", photos:"photo(s) demandée(s)",
     prendre:"Prendre une photo", valider:"Pièce terminée", rouvrir:"Rouvrir", terminer:"Terminer la mission", manque:"Il reste à faire :", signaler:"Signaler un problème", decrire:"Décrivez le problème",
     bloquant:"Le logement ne peut pas accueillir de voyageurs", envoyer:"Envoyer", annuler:"Annuler", merci:"Mission terminée. Merci !", attente:"photo(s) en attente de réseau", docs:"Mes documents", fiche:"Ma fiche",
-    signale:"Problème signalé à la conciergerie.", consigne:"Consigne", envoi:"Envoi…", langue:"العربية", maps:"Itinéraire", repere:"Repère", chemin:"Le chemin", code:"Code", jarrive:"J'arrive", commence:"Mission commencée", pos:"Votre position est relevée seulement quand vous appuyez sur « J'arrive » et « Terminer la mission »."},
+    signale:"Problème signalé à la conciergerie.", consigne:"Consigne", envoi:"Envoi…", langue:"العربية", nmission:"mission", nmissions:"missions", premiere:"la première à", rien:"Rien de prévu aujourd'hui.", accueil:"Accueil", transfert:"Transfert", visite:"Visite", autre:"Autre", pieces:"pièces faites", maps:"Itinéraire", repere:"Repère", chemin:"Le chemin", code:"Code", jarrive:"J'arrive", commence:"Mission commencée", pos:"Votre position est relevée seulement quand vous appuyez sur « J'arrive » et « Terminer la mission »."},
   ar:{bonjour:"مرحبا", missions:"المهام ديالي", aucune:"ما كاين حتى مهمة دابا.", auj:"اليوم", retard:"متأخرة", menage:"التنظيف", controle:"المراقبة", maintenance:"الصيانة",
     a_faire:"باقي", en_cours:"جارية", faite:"سالات", refusee:"خاصها تعاود", ouvrir:"حل", retour:"‹ المهام ديالي", acces:"الدخول", linge:"الفراش اللي خاصو يتحط", photos:"تصاور مطلوبين",
     prendre:"خود تصويرة", valider:"البيت سالا", rouvrir:"عاود حل", terminer:"سالي المهمة", manque:"باقي خاصك تدير:", signaler:"علّم على مشكل", decrire:"شرح المشكل",
     bloquant:"السكن ما يقدرش يستقبل الضيوف", envoyer:"صيفط", annuler:"إلغاء", merci:"المهمة سالات. شكرا!", attente:"تصاور كيتسناو الريزو", docs:"الوثائق ديالي", fiche:"البطاقة ديالي",
-    signale:"المشكل وصل للكونسيرجري.", consigne:"التعليمات", envoi:"كيتصيفط…", langue:"Français", maps:"الطريق", repere:"علامة", chemin:"الطريق للدار", code:"الكود", jarrive:"وصلت", commence:"المهمة بدات", pos:"البلاصة ديالك كاتتسجل غير ملي كاتضغط على «وصلت» و«سالي المهمة»."}
+    signale:"المشكل وصل للكونسيرجري.", consigne:"التعليمات", envoi:"كيتصيفط…", langue:"Français", nmission:"مهمة", nmissions:"مهام", premiere:"الأولى مع", rien:"ما كاين والو اليوم.", accueil:"الاستقبال", transfert:"النقل", visite:"الزيارة", autre:"أخرى", pieces:"بيوت سالاو", maps:"الطريق", repere:"علامة", chemin:"الطريق للدار", code:"الكود", jarrive:"وصلت", commence:"المهمة بدات", pos:"البلاصة ديالك كاتتسجل غير ملي كاتضغط على «وصلت» و«سالي المهمة»."}
 };
+const CZ_TYPE_C = {menage:"#1C2B45", controle:"#A07A38", maintenance:"#A65A3A", accueil:"#3A6E8F", transfert:"#3A6E8F", visite:"#6B5B95", autre:"#5A5F5B"};
+const czPill = st => st === "faite" ? "p-ok" : st === "refusee" ? "p-bad" : st === "en_cours" ? "p-warn" : "p-todo";
 let CZL = (() => { try { return localStorage.getItem("orvia-agent-l") || "fr"; } catch(e) { return "fr"; } })();
 const czt = k => (CZT[CZL] || CZT.fr)[k] || k;
 const CZA = { M:null, m:null };
@@ -41,15 +43,18 @@ async function czHome(){
   S.view = "cz"; czaDir();
   try { CZA.M = await czaapi("mes_missions"); } catch(e) { if (!CZA.M) CZA.M = {missions:[], aujourdhui:new Date().toISOString().slice(0, 10)}; }
   const M = CZA.M.missions, auj = CZA.M.aujourdhui, att = await czQ.nb();
-  const carte = m => `<button class="card cz-m" data-m="${m.id}" style="display:grid;gap:4px;text-align:start;width:100%;font:inherit;color:inherit;cursor:pointer">
-      <div style="display:flex;justify-content:space-between;gap:8px"><b>${esc(m.logement)}</b><span class="pill ${m.statut === "faite" ? "p-ok" : m.statut === "refusee" ? "p-bad" : m.statut === "en_cours" ? "p-warn" : ""}">${esc(czt(m.statut))}</span></div>
-      <div class="muted">${m.date < auj ? `<b style="color:#8e3b2f">${czt("retard")}</b> · ` : ""}${esc(czt(m.type))}${m.heure ? " · " + esc(m.heure) : ""} · ${esc(m.ville || "")}</div>${m.note ? `<div class="hint">${esc(m.note)}</div>` : ""}</button>`;
+  const carte = m => `<button class="kt-m s-${esc(m.statut)}${m.date < auj && m.statut !== "faite" ? " retard" : ""}" data-m="${m.id}">
+      <div class="h">${esc(m.heure || "–")}${m.date < auj && m.statut !== "faite" ? `<small style="color:#B5523F">${czt("retard")}</small>` : ""}</div>
+      <div><div class="l"><b>${esc(m.logement)}</b><span class="pill ${czPill(m.statut)}">${m.statut === "faite" ? "✓ " : ""}${esc(czt(m.statut))}</span></div>
+      <div class="t"><span class="kt-ty" style="--c:${CZ_TYPE_C[m.type] || "#5A5F5B"}">${esc(czt(m.type))}</span>${m.ville ? " · " + esc(m.ville) : ""}</div>${m.note ? `<div class="n">${esc(m.note)}</div>` : ""}</div></button>`;
+  const dujour = M.filter(m => (m.date <= auj) && m.statut !== "faite"), prem = dujour.find(m => m.heure);
   const jours = {}; M.forEach(m => (jours[m.date < auj ? auj : m.date] = jours[m.date < auj ? auj : m.date] || []).push(m));
-  $("#view").innerHTML = `<div class="home-hero"><div class="hk">${AG}</div><div class="ht">${czt("bonjour")} ${esc(S.me.prenom)}</div>
-      <div style="margin-top:8px"><button class="btn ghost" id="czl" style="color:inherit;border-color:currentColor">${czt("langue")}</button></div></div>
+  $("#view").innerHTML = `<div class="kt-hero"><div class="k1">${AG}</div><div class="k2">${czt("bonjour")} ${esc(S.me.prenom)}</div>
+      <div class="k3">${dujour.length ? `${czt("auj")} : <b>${dujour.length} ${czt(dujour.length > 1 ? "nmissions" : "nmission")}</b>${prem ? `, ${czt("premiere")} ${esc(prem.heure)}` : ""}` : czt("rien")}</div>
+      <button class="kt-lang" id="czl">${czt("langue")}</button></div>
     ${att ? `<div class="card accent">${att} ${czt("attente")}</div>` : ""}
     <h2 style="margin:18px 4px 8px">${czt("missions")}</h2>
-    ${Object.keys(jours).sort().map(d => `<div class="muted" style="margin:14px 4px 6px">${d === auj ? czt("auj") : esc(czaD(d))}</div>${jours[d].map(carte).join("")}`).join("") || `<div class="card muted">${czt("aucune")}</div>`}
+    ${Object.keys(jours).sort().map(d => `<div class="kt-jour">${d === auj ? czt("auj") : esc(czaD(d))}</div>${jours[d].map(carte).join("")}`).join("") || `<div class="card muted">${czt("aucune")}</div>`}
     <div class="tiles" style="margin-top:18px"><button class="tile" id="t-docs"><span class="tt">${czt("docs")}</span></button><button class="tile" id="t-fiche"><span class="tt">${czt("fiche")}</span></button></div>`;
   $("#czl").onclick = () => { CZL = CZL === "ar" ? "fr" : "ar"; try { localStorage.setItem("orvia-agent-l", CZL); } catch(e) {} czHome(); };
   document.querySelectorAll("[data-m]").forEach(b => b.onclick = () => czOuvrir(+b.dataset.m));
@@ -66,21 +71,28 @@ async function czOuvrir(id){
 }
 function czMis(){
   czaDir(); const m = CZA.m, fini = m.statut === "faite";
-  $("#view").innerHTML = `<button class="btn ghost" id="czb">${czt("retour")}</button>
-    <div class="card"><h2 style="margin:0">${esc(m.logement)}</h2><div class="muted">${esc(czt(m.type))} · ${esc(czaD(m.date))}${m.heure ? " · " + esc(m.heure) : ""}</div><div class="muted">${esc(m.adresse)} ${esc(m.ville)}</div>
-      ${m.note ? `<div><b>${czt("consigne")} :</b> ${esc(m.note)}</div>` : ""}${m.acces ? `<details><summary><b>${czt("acces")}</b></summary><div style="white-space:pre-line">${esc(m.acces)}</div></details>` : ""}
-      ${m.kit_linge ? `<div><b>${czt("linge")} :</b> ${esc(m.kit_linge)}</div>` : ""}
-      ${(() => { const V = m.livret || {}; return `${V.carte && V.carte.maps ? `<div style="display:flex;gap:8px;flex-wrap:wrap"><a class="btn" href="${esc(V.carte.maps)}" target="_blank" rel="noopener">${czt("maps")}</a><a class="btn ghost" href="${esc(V.carte.waze)}" target="_blank" rel="noopener">Waze</a></div>` : ""}
-        ${V.repere ? `<div><b>${czt("repere")} :</b> ${esc(V.repere)}</div>` : ""}${(V.etapes || []).length ? `<details><summary><b>${czt("chemin")}</b></summary>${V.etapes.map((e, i) => `<div style="margin-top:8px">${e.photo ? `<img src="${esc(e.photo)}" alt="" loading="lazy" style="width:100%;max-height:260px;object-fit:cover;display:block">` : ""}<div>${i + 1}. ${esc(e.texte)}</div></div>`).join("")}</details>` : ""}
-        ${V.code ? `<div><b>${czt("code")} :</b> ${esc(V.code)}${V.serrure ? ` · ${esc(V.serrure)}` : ""}</div>` : ""}`; })()}</div>
-    ${fini ? "" : m.commence ? `<div class="card"><span class="pill p-ok">${czt("commence")}</span></div>` : `<div class="card" style="display:grid;gap:8px"><button class="primary" id="czgo" style="width:100%;padding:16px">${czt("jarrive")}</button><div class="hint">${czt("pos")}</div></div>`}
-    ${m.pieces.map((p, i) => `<div class="card" style="display:grid;gap:8px"><div style="display:flex;justify-content:space-between;gap:8px"><b>${esc(p.piece)}</b>${p.ok ? `<span class="pill p-ok">✓</span>` : `<span class="pill">${p.urls.length}/${p.photos}</span>`}</div>
-      ${p.consignes ? `<div class="hint">${esc(p.consignes)}</div>` : ""}<div class="hint">${p.photos} ${czt("photos")}</div>
-      <div style="display:flex;gap:6px;flex-wrap:wrap">${p.urls.map(u => `<img src="${esc(u)}" alt="" style="width:76px;height:76px;object-fit:cover">`).join("")}</div>
-      ${fini ? "" : `<div style="display:flex;gap:8px;flex-wrap:wrap"><label class="btn" style="cursor:pointer">${czt("prendre")}<input type="file" accept="image/*" capture="environment" data-ph="${i}" hidden></label>
-        <button class="${p.ok ? "btn ghost" : "primary"}" data-ok="${i}" data-v="${p.ok ? 0 : 1}">${p.ok ? czt("rouvrir") : czt("valider")}</button></div>`}</div>`).join("")}
-    ${fini ? `<div class="card accent">${czt("merci")}</div>` : `<button class="primary" id="czt" style="width:100%;padding:16px">${czt("terminer")}</button>`}
-    <button class="btn ghost" id="czs" style="width:100%;margin-top:10px">${czt("signaler")}</button>`;
+  const V = m.livret || {}, nOk = m.pieces.filter(p => p.ok).length, nP = m.pieces.length;
+  $("#view").innerHTML = `<button class="btn ghost" id="czb" style="margin-bottom:10px">${czt("retour")}</button>
+    <div class="kt-head"><h2>${esc(m.logement)}</h2>
+      <div class="t"><span class="kt-ty" style="--c:${m.type === "menage" ? "#C6A15B" : CZ_TYPE_C[m.type] || "#C6A15B"}">${esc(czt(m.type))}</span> · ${esc(czaD(m.date))}${m.heure ? " · " + esc(m.heure) : ""}</div>
+      <div class="t">${esc(m.adresse)} ${esc(m.ville)}</div>
+      ${V.carte && V.carte.maps ? `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px"><a class="btn" href="${esc(V.carte.maps)}" target="_blank" rel="noopener">📍 ${czt("maps")}</a><a class="btn" href="${esc(V.carte.waze)}" target="_blank" rel="noopener">Waze</a></div>` : ""}
+      ${V.repere ? `<div class="t"><b style="color:#fff">${czt("repere")} :</b> ${esc(V.repere)}</div>` : ""}</div>
+    ${m.note || m.acces || m.kit_linge || V.code || (V.etapes || []).length ? `<div class="card" style="display:grid;gap:8px">
+      ${m.note ? `<div class="kt-m" style="display:block;border-inline-start-color:#C6A46A;margin:0;cursor:default"><b>${czt("consigne")}</b><div style="white-space:pre-line;margin-top:4px">${esc(m.note)}</div></div>` : ""}
+      ${V.code ? `<div><b>${czt("code")} :</b> <span style="font-size:20px;letter-spacing:.12em;font-weight:600">${esc(V.code)}</span>${V.serrure ? `<div class="hint">${esc(V.serrure)}</div>` : ""}</div>` : ""}
+      ${m.acces ? `<details><summary><b>${czt("acces")}</b></summary><div style="white-space:pre-line">${esc(m.acces)}</div></details>` : ""}
+      ${(V.etapes || []).length ? `<details><summary><b>${czt("chemin")}</b></summary>${V.etapes.map((e, i) => `<div style="margin-top:8px">${e.photo ? `<img src="${esc(e.photo)}" alt="" loading="lazy" style="width:100%;max-height:260px;object-fit:cover;display:block">` : ""}<div>${i + 1}. ${esc(e.texte)}</div></div>`).join("")}</details>` : ""}
+      ${m.kit_linge ? `<div><b>${czt("linge")} :</b> ${esc(m.kit_linge)}</div>` : ""}</div>` : ""}
+    ${fini ? "" : m.commence ? "" : `<div class="card" style="display:grid;gap:8px"><button class="primary kt-big" id="czgo">${czt("jarrive")}</button><div class="hint">${czt("pos")}</div></div>`}
+    ${nP ? `<div style="display:flex;justify-content:space-between;align-items:center;margin:14px 2px 6px"><b style="color:var(--nuit)">${nOk}/${nP} ${czt("pieces")}</b>${m.commence && !fini ? `<span class="pill p-warn">${czt("commence")}</span>` : ""}</div><div class="kt-prog" style="margin-bottom:12px"><i style="width:${nP ? Math.round(nOk / nP * 100) : 0}%"></i></div>` : ""}
+    ${m.pieces.map((p, i) => `<div class="card kt-piece ${p.ok ? "ok" : ""}" style="display:grid;gap:8px"><div style="display:flex;justify-content:space-between;gap:8px;align-items:center"><b style="font-size:16px">${esc(p.piece)}</b>${p.ok ? `<span class="pill p-ok">✓</span>` : `<span class="pill p-todo">📷 ${p.urls.length}/${p.photos}</span>`}</div>
+      ${p.consignes ? `<div class="hint">${esc(p.consignes)}</div>` : ""}
+      ${p.urls.length ? `<div style="display:flex;gap:6px;flex-wrap:wrap">${p.urls.map(u => `<img src="${esc(u)}" alt="" style="width:76px;height:76px;object-fit:cover;border-radius:4px">`).join("")}</div>` : ""}
+      ${fini ? "" : `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><label class="btn kt-photo" style="cursor:pointer;text-align:center">📷 ${czt("prendre")}<input type="file" accept="image/*" capture="environment" data-ph="${i}" hidden></label>
+        <button class="${p.ok ? "btn ghost" : "btn kt-ok"}" data-ok="${i}" data-v="${p.ok ? 0 : 1}">${p.ok ? czt("rouvrir") : "✓ " + czt("valider")}</button></div>`}</div>`).join("")}
+    ${fini ? `<div class="card accent">${czt("merci")}</div>` : `<button class="primary kt-big" id="czt">${czt("terminer")}</button>`}
+    <button class="btn kt-pb" id="czs" style="width:100%;margin-top:10px">⚠ ${czt("signaler")}</button>`;
   $("#czb").onclick = czHome;
   document.querySelectorAll("[data-ph]").forEach(inp => inp.onchange = async () => {
     const f = inp.files[0]; if (!f) return; const i = +inp.dataset.ph; const lab = inp.parentElement; lab.firstChild.textContent = czt("envoi");
