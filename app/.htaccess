@@ -1,0 +1,14 @@
+DirectoryIndex index.php
+AddType application/manifest+json .webmanifest
+RewriteEngine On
+RewriteCond %{HTTPS} off
+RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+RewriteRule ^installer/?$ installer.php [L]
+<FilesMatch "^(config\.php|lib\.php|[a-z_]+_lib\.php|cron\.php|[a-z]+_defaut\.txt|install\.sql|LISEZMOI\.md)$">
+  Require all denied
+</FilesMatch>
+RedirectMatch 403 ^.*/dompdf/.*$
+Options -Indexes
+<IfModule mod_headers.c>
+  Header set X-Robots-Tag "noindex, nofollow"
+</IfModule>

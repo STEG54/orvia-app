@@ -1,0 +1,18 @@
+Amaya : composants tiers inclus et leurs licences
+=================================================
+
+Les textes complets des licences sont fournis avec chaque composant, dans les dossiers indiqués.
+
+dompdf/dompdf 3.1.6 ............ LGPL 2.1       app/dompdf/vendor/dompdf/dompdf/LICENSE.LGPL
+dompdf/php-font-lib 1.0.2 ...... LGPL 2.1       app/dompdf/vendor/dompdf/php-font-lib/LICENSE
+dompdf/php-svg-lib 1.0.2 ....... LGPL 3.0       app/dompdf/vendor/dompdf/php-svg-lib/LICENSE
+masterminds/html5 2.10.1 ....... MIT            app/dompdf/vendor/masterminds/html5/LICENSE.txt
+sabberworm/php-css-parser 8.9.0  MIT            app/dompdf/vendor/sabberworm/php-css-parser/LICENSE
+Polices DejaVu (dans dompdf) ... Licence libre Bitstream Vera / DejaVu (domaine public pour les modifications)
+@zxing/library 0.23.0 .......... Apache 2.0     app/assets/zxing.min.js (lecture des codes-barres)
+qrcode-generator 1.4.4 ......... MIT            app/assets/qrcode.js (Kazuhiko Arase ; « QR Code » est une marque de DENSO WAVE)
+Figtree ........................ SIL OFL 1.1    app/assets/fonts/OFL-Figtree.txt
+Bricolage Grotesque ............ SIL OFL 1.1    app/assets/fonts/OFL-Bricolage.txt
+
+Les bibliothèques LGPL sont utilisées sans modification et restent remplaçables par une autre version
+(dossier app/dompdf/vendor), conformément à la licence.

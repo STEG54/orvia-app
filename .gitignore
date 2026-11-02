@@ -1,0 +1,10 @@
+# Paquets construits et fichiers propres à une installation : jamais dans le dépôt
+/pkg/
+/dist/
+app/config.php
+app/uploads/*
+!app/uploads/.htaccess
+app/prive/*
+!app/prive/.htaccess
+*.zip
+.DS_Store

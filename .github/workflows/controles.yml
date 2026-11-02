@@ -1,0 +1,33 @@
+# Contrôles automatiques à chaque envoi sur le dépôt : syntaxe, paquet, installation neuve,
+# tests unitaires, connexions, non-régression métier sur une démo.
+name: Contrôles
+on: [push, pull_request]
+jobs:
+  controles:
+    runs-on: ubuntu-latest
+    services:
+      mariadb:
+        image: mariadb:11.4
+        env:
+          MARIADB_ROOT_PASSWORD: ci
+        ports: ["3306:3306"]
+        options: --health-cmd="healthcheck.sh --connect --innodb_initialized" --health-interval=5s --health-timeout=5s --health-retries=20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.2"
+          extensions: pdo_mysql, gd, openssl, sodium, zip, fileinfo, curl, exif, mbstring
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: sudo apt-get update && sudo apt-get install -y mariadb-client zip unzip
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install "moto[server]"   # stockage S3 local pour tester la copie hors du serveur
+      - run: chmod +x tests/*.sh outils/*.sh && tests/ci.sh
+        env:
+          DB_HOST: 127.0.0.1
+          DB_USER: root
+          DB_PASS: ci
