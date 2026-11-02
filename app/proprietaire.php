@@ -26,7 +26,7 @@ nav.tabs{display:flex;gap:6px;flex-wrap:wrap;margin-top:20px}
 nav.tabs a{color:#fff;text-decoration:none;font-size:.88rem;padding:7px 13px;border:1px solid rgba(255,255,255,.3);border-radius:999px;white-space:nowrap}
 nav.tabs a .n{background:var(--or);color:var(--ink);border-radius:999px;padding:0 7px;margin-left:6px;font-size:.75rem;font-weight:500}
 main{margin-top:-44px;padding-bottom:70px}
-.figs{background:#fff;border-radius:16px;padding:20px 22px;display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:16px;box-shadow:0 16px 34px -22px rgba(44,47,52,.6)}
+.figs{background:#fff;border-radius:16px;padding:20px 22px;display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:16px;box-shadow:0 16px 34px -22px rgba(44,47,52,.6)}
 .figs b{display:block;font-family:"Marcellus",Georgia,serif;font-weight:400;font-size:2.1rem;line-height:1.1;color:var(--ardoise)}
 .figs span{font-size:.85rem;color:var(--soft)}
 section{background:#fff;border-radius:16px;padding:22px;margin-top:16px;scroll-margin-top:12px}
@@ -56,7 +56,7 @@ textarea,input[type=text]{width:100%;font:inherit;padding:11px 12px;border:1px s
 .piece{border-top:1px solid var(--line);padding:12px 0}
 .demo-ruban{position:fixed;left:50%;transform:translateX(-50%);bottom:12px;z-index:150;display:flex;align-items:center;gap:4px;flex-wrap:wrap;justify-content:center;background:#2C2F34;color:#fff;font-size:12px;padding:5px 6px 5px 12px;max-width:calc(100% - 16px);border-radius:999px}
 .demo-ruban .dr-t{margin-right:4px;opacity:.75}.demo-ruban a,.demo-ruban b{color:#fff;text-decoration:none;padding:6px 10px;white-space:nowrap;font-weight:500;border-radius:999px}.demo-ruban b{background:var(--ardoise)}
-@media print{.band nav,.demo-ruban,.noprint{display:none!important}.ov{position:static;background:none;padding:0}.ov .box{max-width:none}}
+@media print{.band nav,.demo-ruban,.noprint{display:none!important}body.ovon>.band,body.ovon>main{display:none!important}.ov{position:static;background:none;padding:0}.ov .box{max-width:none}}
 </style>
 </head>
 <body>
@@ -83,7 +83,7 @@ async function reduire(file){ // photos envoyées allégées (réseau mobile)
 }
 const photos = L => L.length ? `<div class="ph">${L.map(x => `<a href="${esc(x.url)}" target="_blank" rel="noopener"><img src="${esc(x.mini)}" alt="" loading="lazy"></a>`).join("")}</div>` : "";
 function ouvrir(html){ const o = document.createElement("div"); o.className = "ov"; o.innerHTML = `<div class="box">${html}<div class="row noprint" style="margin-top:18px"><button class="btn ghost" data-x>Fermer</button><button class="btn ghost" data-pr>Imprimer</button></div></div>`;
-  document.body.appendChild(o); o.querySelector("[data-x]").onclick = () => o.remove(); o.querySelector("[data-pr]").onclick = () => window.print(); o.onclick = e => { if (e.target === o) o.remove(); }; }
+  document.body.appendChild(o); document.body.classList.add("ovon"); const ferme = () => { o.remove(); document.body.classList.remove("ovon"); }; o.querySelector("[data-x]").onclick = ferme; o.querySelector("[data-pr]").onclick = () => window.print(); o.onclick = e => { if (e.target === o) ferme(); }; }
 
 let D;
 async function load(){
@@ -120,8 +120,8 @@ async function load(){
         <span class="row" style="margin:0">${r.lu_at ? "" : `<span class="pill">Nouveau</span>`}<button class="btn ghost" data-rap="${r.id}">Lire</button></span></div>`).join("") || `<p class="muted">Les rapports envoyés par votre conciergerie apparaîtront ici.</p>`}</section>
     <section id="sejours"><h2>Séjours et états des lieux</h2><p class="small muted">Pour chaque séjour, l'état du logement pièce par pièce, en photos : à l'entrée (le ménage fait avant l'arrivée) et à la sortie (le ménage fait après le départ).</p>
       <div class="tw"><table><thead><tr><th>Logement</th><th>Séjour</th><th>Voyageurs</th><th>Canal</th><th>État des lieux</th></tr></thead><tbody>
-      ${D.reservations.slice().reverse().map(r => `<tr><td>${esc(nomL(r.logement_id))}</td><td>${esc(fd(r.arrivee))} au ${esc(fd(r.depart))}</td><td>${+r.nb}</td><td>${esc(SRC[r.source] || r.source)}</td>
-        <td>${r.edl_entree ? `<button class="btn lien" data-edl="${r.edl_entree}" data-sens="entrée">Entrée</button>` : `<span class="small muted">Entrée à venir</span>`} · ${r.edl_sortie ? `<button class="btn lien" data-edl="${r.edl_sortie}" data-sens="sortie">Sortie</button>` : `<span class="small muted">sortie à venir</span>`}</td></tr>`).join("") || `<tr><td colspan="5" class="muted">Aucun séjour sur la période.</td></tr>`}</tbody></table></div></section>
+      ${D.reservations.slice().reverse().map((r, i) => `<tr${i >= 10 ? ' class="plus" hidden' : ''}><td>${esc(nomL(r.logement_id))}</td><td>${esc(fd(r.arrivee))} au ${esc(fd(r.depart))}</td><td>${+r.nb}</td><td>${esc(SRC[r.source] || r.source)}</td>
+        <td>${r.edl_entree ? `<button class="btn lien" data-edl="${r.edl_entree}" data-sens="entrée">Entrée</button>` : `<span class="small muted">Entrée à venir</span>`} · ${r.edl_sortie ? `<button class="btn lien" data-edl="${r.edl_sortie}" data-sens="sortie">Sortie</button>` : `<span class="small muted">sortie à venir</span>`}</td></tr>`).join("") || `<tr><td colspan="5" class="muted">Aucun séjour sur la période.</td></tr>`}</tbody></table></div>${D.reservations.length > 10 ? `<button class="btn ghost" id="tous" style="margin-top:12px">Voir les ${D.reservations.length} séjours des deux derniers mois</button>` : ""}</section>
     <section id="devis"><h2>Devis et travaux</h2>${D.devis.map(d => `<div class="item"><div class="row" style="justify-content:space-between;margin:0"><b>${esc(d.titre)}</b><span class="row" style="margin:0"><b>${dh(d.montant)}</b>
         ${d.statut === "envoye" ? `<span class="pill">À valider</span>` : d.statut === "refuse" ? `<span class="pill bad">Refusé</span>` : d.paiement === "regle" ? `<span class="pill ok">Accepté · réglé</span>` : `<span class="pill neutre">Accepté · à régler</span>`}</span></div>
         <div class="small muted">${esc(nomL(d.logement_id))}${d.prestataire ? " · " + esc(d.prestataire) : ""} · reçu le ${esc(fd(d.created_at))}${d.decide_at ? " · votre réponse le " + esc(fd(d.decide_at)) : ""}${d.regle_at ? " · réglé le " + esc(fd(d.regle_at)) : ""}</div></div>`).join("") || `<p class="muted">Avant tous travaux, votre conciergerie vous soumet ici le devis : rien n'est engagé sans votre accord.</p>`}
@@ -134,6 +134,7 @@ async function load(){
       ${(D.commentaires || []).map(c => `<p style="margin:12px 0 0"><span class="small muted">${esc(fd(c.created_at))} · ${esc(nomL(c.logement_id))}</span><br>« ${esc(c.commentaire)} »</p>`).join("")}</section>` : ""}
     <p class="small muted" style="text-align:center;margin-top:22px">Espace personnel tenu par ${esc(D.agence)}. Ce lien vous est réservé : ne le transférez pas.</p>`;
   const fil = $("#fil"); if (fil) fil.scrollTop = fil.scrollHeight;
+  if ($("#tous")) $("#tous").onclick = () => { document.querySelectorAll("tr.plus").forEach(t => t.hidden = false); $("#tous").remove(); };
   $("#mf").onchange = () => $("#mfn").textContent = $("#mf").files.length ? $("#mf").files.length + " photo(s)" : "";
   $("#ms").onclick = async () => { const fdt = new FormData(); fdt.append("texte", $("#mt").value); for (const f of [...$("#mf").files].slice(0, 4)) fdt.append("photos[]", await reduire(f), "photo.jpg");
     try { await call("prop_ecrire", fdt); load(); } catch(e) { alert(e.message); } };

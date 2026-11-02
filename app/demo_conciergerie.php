@@ -30,7 +30,7 @@ function cz_demo_seed(): void {
   foreach ([['Fatima Zahra', 'Benali'], ['Youssef', 'Amrani'], ['Khadija', 'Ouazzani']] as $i => [$p, $n]) { $ia->execute([$p, $n, '06 00 00 1' . $i . ' 0' . $i, 'equipe' . $i . '@demo-keylia.invalid', $now, $now, $now]); $E[] = (int)$pdo->lastInsertId(); }
   // Propriétaires
   $ip = $pdo->prepare("INSERT INTO c_proprietaires (nom, email, telephone, plafond, created_at) VALUES (?,?,?,?,?)"); $P = [];
-  foreach ([['M. et Mme Lefèvre', 'lefevre@demo-keylia.invalid', 1500], ['Mme Nadia Berrada', 'berrada@demo-keylia.invalid', 2000], ['M. Karim Tazi', 'tazi@demo-keylia.invalid', 1000]] as [$n, $e, $pl]) { $ip->execute([$n, $e, '', $pl, $now]); $P[] = (int)$pdo->lastInsertId(); }
+  foreach ([['M. et Mme Lefèvre', 'lefevre@demo-keylia.invalid', 1500, '+33 6 00 00 00 01'], ['Mme Nadia Berrada', 'berrada@demo-keylia.invalid', 2000, '+212 6 61 00 00 02'], ['M. Karim Tazi', 'tazi@demo-keylia.invalid', 1000, '+212 6 61 00 00 03']] as [$n, $e, $pl, $tl]) { $ip->execute([$n, $e, $tl, $pl, $now]); $P[] = (int)$pdo->lastInsertId(); }
   // Logements
   $L = [
     ['Villa Palmeraie', 'Marrakech', 'Circuit de la Palmeraie', 0, 0, [['Chambre principale', 3], ['Chambre d\'amis', 2], ['Salle de bain', 2], ['Cuisine', 2], ['Salon', 2], ['Terrasse et piscine', 2]], '3 lits doubles, 8 serviettes, 6 draps de bain', 240, '7341'],
@@ -118,7 +118,7 @@ function cz_demo_seed(): void {
   $pdo->prepare("INSERT INTO c_missions (logement_id, reservation_id, type, date, heure, admin_id, duree, statut, etat, note, created_at) VALUES (?, ?, 'accueil', ?, '17:30', ?, 45, 'a_faire', '[]', 'Accueillir la famille Martin, remettre les clés, montrer la terrasse', ?)")->execute([$LID[0], $RID[2], demo_j(0), $gid ?: null, $now]);
   // Signalements
   $ii = $pdo->prepare("INSERT INTO c_incidents (logement_id, auteur, description, photo, bloquant, statut, cout, proprio_statut, created_at, clos_at) VALUES (?,?,?,?,?,?,?,?,?,?)");
-  $ii->execute([$LID[1], 'Youssef Amrani', 'Mitigeur de la douche qui fuit', cz_demo_photo(900, 'Salle de bain'), 0, 'ouvert', 450, 'demande', demo_j(-1) . ' 12:10:00', null]);
+  $ii->execute([$LID[1], 'Youssef Amrani', 'Mitigeur de la douche qui fuit', cz_demo_photo(900, 'Salle de bain'), 0, 'ouvert', 650, '', demo_j(-1) . ' 12:10:00', null]);
   $ii->execute([$LID[0], 'Fatima Zahra Benali', 'Ampoule de l\'entrée remplacée', null, 0, 'clos', 35, '', demo_j(-5) . ' 14:00:00', demo_j(-5) . ' 16:00:00']);
   // Historique : environ quatre séjours sur dix commandent quelque chose, la plupart laissent un avis.
   $coms = ['Logement impeccable, on reviendra.', 'Très propre, accueil chaleureux.', 'Superbe terrasse, literie parfaite.', 'Rien à redire.', 'Le petit-déjeuner du premier matin était une très bonne idée.', 'Calme, propre, bien situé.', 'Parfait pour notre famille.', ''];

@@ -621,7 +621,7 @@ function czVPf(){
       <label>Votre mot pour le propriétaire<textarea id="prn" rows="3" placeholder="Un bon mois : la villa a été louée 27 nuits, les voyageurs saluent la propreté…"></textarea></label>
       <label class="chk"><input type="checkbox" id="prp" checked> Joindre les photos</label>
       <div style="display:flex;gap:8px"><button class="primary" id="prgo">Envoyer le rapport</button><button class="btn ghost" id="prx">Annuler</button></div></div>` : "";
-  return `<button class="btn ghost" id="pfback">‹ Propriétaires</button>
+  return `<button class="btn ghost" id="pfback" style="align-self:flex-start">‹ Propriétaires</button>
     <div class="card"><div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:baseline"><h2 style="margin:0">${esc(P.nom)}</h2>${+P.lien ? `<span class="pill p-ok">Espace actif</span>` : `<span class="pill">Espace pas encore ouvert</span>`}</div>
       <div class="muted">${esc(P.email || "pas d'e-mail")} · ${esc(P.telephone || "pas de téléphone")} · ${F.logements.map(l => esc(l.nom)).join(", ") || "aucun logement"}</div>
       <div class="hint">Chaque message, devis ou rapport le prévient par e-mail avec le lien de son espace, et vous propose de le prévenir aussi par WhatsApp.</div></div>
