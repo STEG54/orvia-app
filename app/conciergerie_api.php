@@ -113,7 +113,10 @@ try {
       if ($p['total'] <= 0) c_fail('Rien à verser ce mois-ci.');
       if ($p['regle']) c_fail('Déjà réglé le ' . date('d/m/Y', strtotime($p['regle']['le'])) . '.');
       $moyen = in_array($in['moyen'] ?? '', ['especes', 'virement', 'autre'], true) ? $in['moyen'] : 'especes';
-      db()->prepare("INSERT INTO c_paie_reglements (animatrice_id, mois, montant, moyen, detail, regle_at, par) VALUES (?,?,?,?,?,?,?)")->execute([$aid, $mois, $p['total'], $moyen, json_encode($p, JSON_UNESCAPED_UNICODE), now(), admin_nom()]);
+      // Signature facultative : sur place (dessinée sur le téléphone du gérant) ou plus tard par l'intervenant dans son appli.
+      $sig = null; if (!empty($in['signature'])) { try { $sig = cz_signature_enregistrer((string)$in['signature']); } catch (RuntimeException $e) { c_fail($e->getMessage()); } }
+      db()->prepare("INSERT INTO c_paie_reglements (animatrice_id, mois, montant, moyen, detail, regle_at, par, signature, signe_at, signe_ou, a_signer) VALUES (?,?,?,?,?,?,?,?,?,?,?)")
+        ->execute([$aid, $mois, $p['total'], $moyen, json_encode($p, JSON_UNESCAPED_UNICODE), now(), admin_nom(), $sig, $sig ? now() : null, $sig ? 'sur place' : '', !$sig && !empty($in['dans_appli']) ? 1 : 0]);
       journal('paiement équipe', $p['nom'] . ' ' . $mois . ' ' . $p['total'] . ' DH'); c_out(['ok' => true, 'montant' => $p['total']]);
 
     case 'taxe_sejour':
@@ -443,7 +446,14 @@ try {
         foreach ($P as $i => $_) { if (!empty($etat[$i]['ok'])) $ok++; if (!$ph && !empty($etat[$i]['photos'][0])) $ph = photo_url($etat[$i]['photos'][0], true); }
         unset($m['etat'], $m['checklist'], $m['logement_id']); return $m + ['pieces' => count($P), 'pieces_ok' => $ok, 'vignette' => $ph]; }, $st->fetchAll());
       $mp = null; try { $T = cz_paie_tarifs(); if (array_sum($T['types']) > 0) { foreach (cz_paie_mois(date('Y-m'))['personnes'] as $x) if ($x['id'] === $aid) $mp = ['missions' => count($x['missions']), 'total' => $x['total'], 'regle' => (bool)$x['regle']]; $mp = $mp ?? ['missions' => 0, 'total' => 0, 'regle' => false]; } } catch (Throwable $e) {}
-      c_out(['missions' => $out, 'aujourdhui' => $j, 'mois' => $mp]);
+      $st = db()->prepare("SELECT mois, montant FROM c_paie_reglements WHERE animatrice_id = ? AND a_signer = 1 AND signature IS NULL ORDER BY mois"); $st->execute([$aid]);
+      c_out(['missions' => $out, 'aujourdhui' => $j, 'mois' => $mp, 'a_signer' => array_map(fn($r) => ['mois' => $r['mois'], 'montant' => (float)$r['montant']], $st->fetchAll())]);
+
+    case 'paie_signer':
+      $aid = c_agent(); $mois = (string)($in['mois'] ?? '');
+      $st = db()->prepare("SELECT montant FROM c_paie_reglements WHERE animatrice_id = ? AND mois = ? AND a_signer = 1 AND signature IS NULL"); $st->execute([$aid, $mois]); $st->fetchColumn() !== false ?: c_fail('Rien à signer.', 404);
+      try { $sig = cz_signature_enregistrer((string)($in['signature'] ?? '')); } catch (RuntimeException $e) { c_fail($e->getMessage()); }
+      db()->prepare("UPDATE c_paie_reglements SET signature = ?, signe_at = ?, signe_ou = 'appli', a_signer = 0 WHERE animatrice_id = ? AND mois = ?")->execute([$sig, now(), $aid, $mois]); c_out(['ok' => true]);
 
     case 'ma_mission':
       $m = c_mission_acces((int)($_GET['id'] ?? 0)); $etat = cz_etat($m); $P = [];

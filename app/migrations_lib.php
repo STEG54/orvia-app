@@ -161,5 +161,6 @@ function mig_10(PDO $pdo): void {
   $pdo->exec("CREATE TABLE IF NOT EXISTS `{$p}c_paie_ajust` (id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY, animatrice_id INT UNSIGNED NOT NULL, mois CHAR(7) NOT NULL, libelle VARCHAR(160) NOT NULL, montant DECIMAL(10,2) NOT NULL,
     par VARCHAR(120) NOT NULL DEFAULT '', created_at DATETIME NOT NULL, KEY am (animatrice_id, mois)) $E");
   $pdo->exec("CREATE TABLE IF NOT EXISTS `{$p}c_paie_reglements` (animatrice_id INT UNSIGNED NOT NULL, mois CHAR(7) NOT NULL, montant DECIMAL(10,2) NOT NULL, moyen VARCHAR(20) NOT NULL DEFAULT '', detail MEDIUMTEXT NULL,
-    regle_at DATETIME NOT NULL, par VARCHAR(120) NOT NULL DEFAULT '', PRIMARY KEY (animatrice_id, mois)) $E");
+    regle_at DATETIME NOT NULL, par VARCHAR(120) NOT NULL DEFAULT '', signature VARCHAR(80) DEFAULT NULL, signe_at DATETIME DEFAULT NULL, signe_ou VARCHAR(10) NOT NULL DEFAULT '', a_signer TINYINT(1) NOT NULL DEFAULT 0,
+    PRIMARY KEY (animatrice_id, mois)) $E");
 }

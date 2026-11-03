@@ -869,55 +869,54 @@ const CZ_LIVRET_TYPES = {
   "#lreg": "Logement non-fumeur. Pas de fête ni de musique forte après 22 h, par respect pour les voisins. Les personnes qui n'ont pas rempli leur fiche d'arrivée ne peuvent pas loger sur place. Signalez toute casse depuis cette page, sans attendre le départ.\nNon-smoking. No parties or loud music after 10 pm. Only guests who filled in their arrival form may stay overnight. Please report any damage from this page.",
   "#lpark": "Stationnement possible dans la rue devant le logement. Ne laissez rien de visible dans la voiture.\nParking is available in the street in front of the property. Leave nothing visible in the car."};
 
-/* ---------- Paiement de l'équipe ---------- */
-const CZ_MOYENS = {especes:"en espèces", virement:"par virement", autre:"autrement"};
+/* ---------- Paiement de l'équipe : simple, pas une comptabilité ---------- */
 function czVPaie(){
   const P = CZ.pa, T = P.tarifs, types = CZ.ini.types || {}, sansT = !Object.values(T.types).some(v => v > 0);
   const mois = new Date(P.mois + "-15").toLocaleDateString("fr-FR", {month:"long", year:"numeric"});
-  const tar = `<details class="card" ${sansT || CZ.paTar ? "open" : ""}><summary><b>Tarifs de l'équipe</b> <span class="hint">${sansT ? "à renseigner pour calculer les relevés" : "par mission faite"}</span></summary>
-      <div class="hint" style="margin:8px 0">Montant versé à l'intervenant pour une mission terminée. Pour le ménage, un tarif par logement remplace le tarif général (une villa ne se paie pas comme un studio).</div>
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px">${Object.entries(types).map(([k, l]) => `<label>${esc(l)} (DH)<input data-pt="${k}" inputmode="decimal" value="${T.types[k] || ""}"></label>`).join("")}</div>
-      <div style="margin-top:10px"><b>Ménage, par logement</b> <span class="hint">· vide = tarif général</span></div>
+  const tar = `<details class="card" ${sansT ? "open" : ""}><summary><b>Tarifs</b> <span class="hint">${sansT ? "à renseigner pour calculer ce que vous devez" : "ce que vous versez par mission faite"}</span></summary>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-top:10px">${Object.entries(types).map(([k, l]) => `<label>${esc(l)} (DH)<input data-pt="${k}" inputmode="decimal" value="${T.types[k] || ""}"></label>`).join("")}</div>
+      <div style="margin-top:10px"><b>Ménage, selon le logement</b> <span class="hint">· vide = tarif ci-dessus</span></div>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin-top:6px">${CZ.ini.logements.filter(l => l.actif).map(l => `<label>${esc(l.nom)}<input data-pl="${l.id}" inputmode="decimal" value="${T.logements[l.id] || ""}" placeholder="${T.types.menage || ""}"></label>`).join("")}</div>
-      <div style="margin-top:12px"><button class="primary" id="pts">Enregistrer les tarifs</button></div></details>`;
-  const fiche = x => { const det = (CZ.paDet || {})[x.id];
-    return `<div class="card pa" style="display:grid;gap:10px"><div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:baseline"><h3 style="margin:0">${esc(x.nom)}</h3><b style="font-size:24px;font-family:var(--serif);font-weight:400">${czDH(x.total)}</b></div>
-      <div class="hint">${Object.entries(x.par_type).map(([k, v]) => `${v.n} ${esc((types[k] || k).toLowerCase())}${v.n > 1 && !/s$/.test(types[k] || k) ? "s" : ""} (${czDH(v.montant)})`).join(" · ") || "aucune mission faite"}${x.sans_tarif ? ` · <span style="color:#9A6B1A">${x.sans_tarif} mission(s) sans tarif</span>` : ""}</div>
-      ${x.ajustements.map(a => `<div style="display:flex;justify-content:space-between;gap:8px"><span>${esc(a.libelle)}</span><span>${a.montant > 0 ? "+" : ""}${czDH(a.montant)} ${x.regle ? "" : `<button class="btn ghost" data-pad="${x.id}:${a.id}" style="padding:2px 8px">×</button>`}</span></div>`).join("")}
-      ${x.regle ? `<div><span class="pill p-ok">Payé le ${esc(czD(x.regle.le))} ${esc(CZ_MOYENS[x.regle.moyen] || "")}</span>${Math.abs(x.regle.montant - x.total) > .01 ? ` <span class="pill p-warn">réglé ${czDH(x.regle.montant)}, le relevé a changé depuis</span>` : ""}</div>`
-        : `<div class="row3" style="grid-template-columns:2fr 1fr auto"><input data-pal="${x.id}" placeholder="Prime, avance, remboursement…"><input data-pam="${x.id}" inputmode="decimal" placeholder="+100 ou -200"><button class="btn" data-paa="${x.id}">Ajouter</button></div>`}
-      <div style="display:flex;gap:8px;flex-wrap:wrap">${x.regle ? `<button class="btn ghost" data-pan="${x.id}">Annuler le paiement</button>` : (x.total > 0 ? `<select data-pmo="${x.id}" style="width:auto"><option value="especes">En espèces</option><option value="virement">Par virement</option><option value="autre">Autrement</option></select><button class="primary" data-pay="${x.id}">Marquer payé</button>` : `<span class="hint" style="align-self:center">Rien à verser : ${x.total < 0 ? "l'avance se déduit le mois suivant (reportez-la en ajustement)" : "aucun montant"}.</span>`)}
-        <button class="btn ghost" data-pdt="${x.id}">${det ? "Masquer le détail" : "Détail des missions"}</button><button class="btn ghost" data-pbon="${x.id}">Bon de paiement</button>${x.telephone ? `<button class="btn ghost" data-pwa="${x.id}">Envoyer par WhatsApp</button>` : ""}</div>
-      ${det ? `<table class="tbl"><thead><tr><th>Date</th><th>Logement</th><th>Mission</th><th>Montant</th></tr></thead><tbody>${x.missions.map(m => `<tr><td>${esc(czD(m.date))}</td><td>${esc(m.logement)}</td><td>${esc(types[m.type] || m.type)}</td><td>${m.montant ? czDH(m.montant) : `<span class="hint">sans tarif</span>`}</td></tr>`).join("")}</tbody></table>` : ""}</div>`; };
-  return `<div class="card no-print"><div style="display:flex;gap:10px;flex-wrap:wrap;align-items:end;justify-content:space-between"><label>Mois<input type="month" id="pam" value="${P.mois}"></label><button class="btn ghost" id="pacsv">Exporter (tableur)</button></div></div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px">
-      <div class="card" style="display:grid;gap:2px;padding:14px 16px"><span class="hint">Reste à payer · ${esc(mois)}</span><b style="font-size:26px">${czDH(P.reste)}</b></div>
-      <div class="card" style="display:grid;gap:2px;padding:14px 16px"><span class="hint">Total du mois</span><b style="font-size:26px">${czDH(P.total)}</b></div>
-      <div class="card" style="display:grid;gap:2px;padding:14px 16px"><span class="hint">Personnes</span><b style="font-size:26px">${P.personnes.length}</b></div></div>
-    ${tar}${P.personnes.map(fiche).join("") || `<div class="card muted">Aucune mission faite par l'équipe en ${esc(mois)}.</div>`}`;
+      <label style="display:flex;gap:10px;align-items:center;font-weight:400;margin-top:12px"><input type="checkbox" id="psig" style="width:auto" ${P.signature ? "checked" : ""}> Faire signer chaque paiement (sur votre téléphone, ou par l'intervenant dans son appli)</label>
+      <div style="margin-top:12px"><button class="primary" id="pts">Enregistrer</button></div></details>`;
+  const fiche = x => { const det = (CZ.paDet || {})[x.id], R = x.regle;
+    const etat = R ? `<span class="pill p-ok">Payé le ${esc(czD(R.le))}</span>${R.signature ? ` <a href="${esc(R.signature)}" target="_blank" rel="noopener" title="Signature"><img src="${esc(R.signature)}" alt="Signature" class="pa-sig"></a>` : R.a_signer ? ` <span class="pill p-todo">Signature attendue dans son appli</span>` : ""}` : "";
+    return `<div class="card pa" style="display:grid;gap:8px"><div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:baseline"><h3 style="margin:0">${esc(x.nom)}</h3><b style="font-size:26px;font-family:var(--serif);font-weight:400">${czDH(x.total)}</b></div>
+      <div class="hint">${Object.entries(x.par_type).map(([k, v]) => { const l = (types[k] || k).toLowerCase(); return `${v.n} ${esc(v.n > 1 && !/s$/.test(l) ? l.replace(/^(\S+)/, "$1s") : l)}`; }).join(" · ") || "aucune mission faite"}${x.ajustements.map(a => ` · ${esc(a.libelle)} ${a.montant > 0 ? "+" : ""}${czDH(a.montant)}${R ? "" : ` <a href="#" data-pad="${x.id}:${a.id}" title="Retirer">×</a>`}`).join("")}${x.sans_tarif ? ` · <span style="color:#9A6B1A">${x.sans_tarif} sans tarif</span>` : ""}</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">${R ? etat + ` <a href="#" data-pan="${x.id}" class="hint">annuler</a>` : x.total > 0 ? `<button class="primary" data-pay="${x.id}">Payé</button>` : `<span class="hint">Rien à verser ce mois-ci.</span>`}
+        ${R ? "" : `<button class="btn ghost" data-paj="${x.id}">Prime ou avance</button>`}<button class="btn ghost" data-pdt="${x.id}">${det ? "Masquer" : "Détail"}</button>${x.telephone ? `<button class="btn ghost" data-pwa="${x.id}">WhatsApp</button>` : ""}</div>
+      ${det ? `<table class="tbl"><tbody>${x.missions.map(m => `<tr><td>${esc(czD(m.date))}</td><td>${esc(m.logement)}</td><td>${esc(types[m.type] || m.type)}</td><td>${m.montant ? czDH(m.montant) : `<span class="hint">sans tarif</span>`}</td></tr>`).join("")}</tbody></table>` : ""}</div>`; };
+  return `<div class="card" style="display:flex;flex-direction:row;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:center;text-align:left"><div><div class="hint">Reste à payer · ${esc(mois)}</div><b style="font-size:30px;font-family:var(--serif);font-weight:400">${czDH(P.reste)}</b></div><input type="month" id="pam" value="${P.mois}" style="width:auto"></div>
+    ${P.personnes.map(fiche).join("") || `<div class="card muted">Aucune mission faite par l'équipe en ${esc(mois)}.</div>`}${tar}`;
+}
+function czSignature(titre, sous, autre){
+  return new Promise(ok => { const o = document.createElement("div"); o.className = "sg-ov";
+    o.innerHTML = `<div class="sg"><b>${esc(titre)}</b><div class="hint">${esc(sous)}</div><canvas width="600" height="260"></canvas><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="primary" data-ok>Valider la signature</button><button class="btn ghost" data-eff>Effacer</button>${autre ? `<button class="btn ghost" data-aut>${esc(autre)}</button>` : ""}<button class="btn ghost" data-x>Annuler</button></div></div>`;
+    document.body.appendChild(o); const c = o.querySelector("canvas"), g = c.getContext("2d"); g.lineWidth = 3; g.lineCap = "round"; g.strokeStyle = "#2C2F34"; let on = false, vide = true;
+    const pt = e => { const r = c.getBoundingClientRect(), t = e.touches ? e.touches[0] : e; return [(t.clientX - r.left) * c.width / r.width, (t.clientY - r.top) * c.height / r.height]; };
+    const deb = e => { e.preventDefault(); on = true; g.beginPath(); g.moveTo(...pt(e)); }, mv = e => { if (!on) return; e.preventDefault(); g.lineTo(...pt(e)); g.stroke(); vide = false; }, fin = () => on = false;
+    c.addEventListener("pointerdown", deb); c.addEventListener("pointermove", mv); addEventListener("pointerup", fin);
+    const ferme = v => { o.remove(); ok(v); };
+    o.querySelector("[data-eff]").onclick = () => { g.clearRect(0, 0, c.width, c.height); vide = true; };
+    o.querySelector("[data-ok]").onclick = () => { if (vide) return toast("Signez dans le cadre."); ferme({signature:c.toDataURL("image/png")}); };
+    if (autre) o.querySelector("[data-aut]").onclick = () => ferme({plus_tard:true});
+    o.querySelector("[data-x]").onclick = () => ferme(null); });
 }
 function czBPaie(){
   const P = CZ.pa, re = () => czRe(), go_ = async (a, b, msg) => { try { await czapi(a, b); if (msg) toast(msg); re(); } catch(e) { toast(e.message); } };
   $("#pam").onchange = () => { if ($("#pam").value) { CZ.paM = $("#pam").value; re(); } };
   $("#pts").onclick = () => { const types = {}, logements = {}; document.querySelectorAll("[data-pt]").forEach(i => types[i.dataset.pt] = i.value); document.querySelectorAll("[data-pl]").forEach(i => logements[i.dataset.pl] = i.value);
-    CZ.paTar = false; go_("paie_tarifs", {types, logements}, "Tarifs enregistrés : relevés recalculés."); };
-  document.querySelectorAll("[data-paa]").forEach(b => b.onclick = () => { const i = b.dataset.paa; go_("paie_ajust", {animatrice_id:+i, mois:P.mois, libelle:$(`[data-pal="${i}"]`).value, montant:$(`[data-pam="${i}"]`).value}); });
-  document.querySelectorAll("[data-pad]").forEach(b => b.onclick = () => { const [a, id] = b.dataset.pad.split(":"); go_("paie_ajust", {animatrice_id:+a, mois:P.mois, id:+id, supprimer:true}); });
-  document.querySelectorAll("[data-pay]").forEach(b => b.onclick = () => { const i = b.dataset.pay, x = P.personnes.find(p => p.id === +i);
-    if (confirm(`Marquer ${czDH(x.total)} payés à ${x.nom} ?`)) go_("paie_regler", {animatrice_id:+i, mois:P.mois, moyen:$(`[data-pmo="${i}"]`).value}, "Paiement enregistré."); });
-  document.querySelectorAll("[data-pan]").forEach(b => b.onclick = () => { if (confirm("Annuler ce paiement ?")) go_("paie_regler", {animatrice_id:+b.dataset.pan, mois:P.mois, annuler:true}); });
+    go_("paie_tarifs", {types, logements, signature:$("#psig").checked}, "Enregistré."); };
+  document.querySelectorAll("[data-paj]").forEach(b => b.onclick = () => { const i = b.dataset.paj, lib = prompt("Prime ou avance : libellé", "Prime"); if (!lib) return; const mt = prompt("Montant en DH (négatif pour une avance, par exemple -200)", ""); if (!mt) return;
+    go_("paie_ajust", {animatrice_id:+i, mois:P.mois, libelle:lib, montant:mt}); });
+  document.querySelectorAll("[data-pad]").forEach(b => b.onclick = e => { e.preventDefault(); const [a, id] = b.dataset.pad.split(":"); go_("paie_ajust", {animatrice_id:+a, mois:P.mois, id:+id, supprimer:true}); });
+  document.querySelectorAll("[data-pay]").forEach(b => b.onclick = async () => { const x = P.personnes.find(p => p.id === +b.dataset.pay); let s = {};
+    if (P.signature) { s = await czSignature(`${x.nom} reçoit ${czDH(x.total)}`, "Signature de l'intervenant, au doigt", "Signera dans son appli"); if (!s) return; }
+    go_("paie_regler", {animatrice_id:x.id, mois:P.mois, moyen:"especes", signature:s.signature || "", dans_appli:!!s.plus_tard}, s.plus_tard ? "Payé : la signature lui est demandée dans son appli." : "Payé."); });
+  document.querySelectorAll("[data-pan]").forEach(b => b.onclick = e => { e.preventDefault(); if (confirm("Annuler ce paiement ?")) go_("paie_regler", {animatrice_id:+b.dataset.pan, mois:P.mois, annuler:true}); });
   document.querySelectorAll("[data-pdt]").forEach(b => b.onclick = () => { CZ.paDet = CZ.paDet || {}; CZ.paDet[b.dataset.pdt] = !CZ.paDet[b.dataset.pdt]; re(); });
   const mois = new Date(P.mois + "-15").toLocaleDateString("fr-FR", {month:"long", year:"numeric"}), types = CZ.ini.types || {};
-  const resume = x => `${mois} : ${Object.entries(x.par_type).map(([k, v]) => v.n + " " + (types[k] || k).toLowerCase()).join(", ")}${x.ajustements.map(a => `, ${a.libelle} ${a.montant > 0 ? "+" : ""}${a.montant} DH`).join("")}. Total : ${czDH(x.total)}.`;
   document.querySelectorAll("[data-pwa]").forEach(b => b.onclick = () => { const x = P.personnes.find(p => p.id === +b.dataset.pwa), n = String(x.telephone).replace(/\D/g, "").replace(/^0/, "212");
-    window.open("https://wa.me/" + n + "?text=" + encodeURIComponent("Bonjour " + x.nom.split(" ")[0] + ",\n" + resume(x) + (x.regle ? "\nRéglé le " + czD(x.regle.le) + "." : "")), "_blank", "noopener"); });
-  document.querySelectorAll("[data-pbon]").forEach(b => b.onclick = () => { const x = P.personnes.find(p => p.id === +b.dataset.pbon), w = window.open("", "_blank");
-    w.document.write(`<!doctype html><meta charset="utf-8"><title>Bon de paiement</title><style>body{font:15px/1.5 Arial,sans-serif;color:#2C2F34;max-width:640px;margin:40px auto}h1{font:400 24px Georgia,serif;color:#43515C}table{width:100%;border-collapse:collapse}td,th{border-bottom:1px solid #ddd;padding:6px 4px;text-align:left}.t{font-size:20px;font-weight:bold;text-align:right;margin-top:12px}.s{display:flex;justify-content:space-between;margin-top:60px}</style>
-      <h1>Bon de paiement · ${esc(mois)}</h1><p><b>${esc(x.nom)}</b></p><table><tr><th>Date</th><th>Logement</th><th>Mission</th><th>Montant</th></tr>${x.missions.map(m => `<tr><td>${esc(czD(m.date))}</td><td>${esc(m.logement)}</td><td>${esc(types[m.type] || m.type)}</td><td>${czDH(m.montant)}</td></tr>`).join("")}
-      ${x.ajustements.map(a => `<tr><td></td><td colspan="2">${esc(a.libelle)}</td><td>${czDH(a.montant)}</td></tr>`).join("")}</table><div class="t">Total : ${czDH(x.total)}</div>
-      <p>${x.regle ? `Réglé le ${esc(czD(x.regle.le))} ${esc(CZ_MOYENS[x.regle.moyen] || "")}.` : "Réglé le ……………… en espèces / par virement."}</p><div class="s"><span>Signature de l'intervenant</span><span>Pour la conciergerie</span></div><script>print()<\/script>`); w.document.close(); });
-  $("#pacsv").onclick = () => { const rows = [["Personne", "Date", "Logement", "Mission ou ajustement", "Montant (DH)", "Payé le"]];
-    P.personnes.forEach(x => { x.missions.forEach(m => rows.push([x.nom, m.date, m.logement, types[m.type] || m.type, m.montant, x.regle ? x.regle.le.slice(0, 10) : ""])); x.ajustements.forEach(a => rows.push([x.nom, "", "", a.libelle, a.montant, x.regle ? x.regle.le.slice(0, 10) : ""])); });
-    const csv = rows.map(r => r.map(c => '"' + String(c).replace(/"/g, '""') + '"').join(";")).join("\r\n"), a = document.createElement("a");
-    a.href = URL.createObjectURL(new Blob(["﻿" + csv], {type:"text/csv;charset=utf-8"})); a.download = `keylia-paiements-equipe-${P.mois}.csv`; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000); };
+    const txt = `Bonjour ${x.nom.split(" ")[0]},\n${mois} : ${Object.entries(x.par_type).map(([k, v]) => v.n + " " + (types[k] || k).toLowerCase()).join(", ")}${x.ajustements.map(a => `, ${a.libelle} ${a.montant > 0 ? "+" : ""}${a.montant} DH`).join("")}. Total : ${czDH(x.total)}.`;
+    window.open("https://wa.me/" + n + "?text=" + encodeURIComponent(txt), "_blank", "noopener"); });
 }

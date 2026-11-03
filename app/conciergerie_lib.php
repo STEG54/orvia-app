@@ -791,6 +791,7 @@ function cz_paie_tarifs_save(array $in): void {
   $T = []; foreach (CZ_MISSION_TYPES as $k => $_) $T[$k] = max(0, round((float)str_replace(',', '.', (string)($in['types'][$k] ?? 0)), 2));
   $L = []; foreach ((array)($in['logements'] ?? []) as $lid => $v) { $v = round((float)str_replace(',', '.', (string)$v), 2); if ($v > 0) $L[(int)$lid] = $v; }
   reglage_set('cz_tarifs_equipe', json_encode(['types' => $T, 'logements' => (object)$L]));
+  if (isset($in['signature'])) reglage_set('cz_paie_signature', empty($in['signature']) ? '0' : '1');
 }
 function cz_paie_mois(string $mois): array {
   if (!preg_match('/^\d{4}-\d{2}$/', $mois)) throw new RuntimeException('Mois invalide.');
@@ -808,6 +809,11 @@ function cz_paie_mois(string $mois): array {
     $tot = round(array_sum(array_column($mis, 'montant')) + array_sum(array_column($aj, 'montant')), 2); $r = $RG[$i] ?? null;
     $parType = []; foreach ($mis as $x) { $parType[$x['type']] = $parType[$x['type']] ?? ['n' => 0, 'montant' => 0]; $parType[$x['type']]['n']++; $parType[$x['type']]['montant'] += $x['montant']; }
     $out[] = ['id' => $i, 'nom' => trim($a['prenom'] . ' ' . $a['nom']), 'telephone' => $a['telephone'], 'missions' => $mis, 'par_type' => $parType, 'ajustements' => $aj, 'total' => $tot,
-      'sans_tarif' => count(array_filter($mis, fn($x) => $x['montant'] <= 0)), 'regle' => $r ? ['montant' => (float)$r['montant'], 'moyen' => $r['moyen'], 'le' => $r['regle_at'], 'par' => $r['par']] : null]; }
-  return ['mois' => $mois, 'tarifs' => $T, 'personnes' => $out, 'total' => round(array_sum(array_column($out, 'total')), 2), 'reste' => round(array_sum(array_map(fn($p) => $p['regle'] ? 0 : $p['total'], $out)), 2)];
+      'sans_tarif' => count(array_filter($mis, fn($x) => $x['montant'] <= 0)), 'regle' => $r ? ['montant' => (float)$r['montant'], 'moyen' => $r['moyen'], 'le' => $r['regle_at'], 'par' => $r['par'], 'signature' => $r['signature'] ? photo_url($r['signature']) : null, 'signe_at' => $r['signe_at'], 'signe_ou' => $r['signe_ou'], 'a_signer' => (bool)$r['a_signer']] : null]; }
+  return ['mois' => $mois, 'tarifs' => $T, 'signature' => reglage('cz_paie_signature', '0') === '1', 'personnes' => $out, 'total' => round(array_sum(array_column($out, 'total')), 2), 'reste' => round(array_sum(array_map(fn($p) => $p['regle'] ? 0 : $p['total'], $out)), 2)];
+}
+/** Signature dessinée au doigt (image PNG en data URL) enregistrée comme une photo. */
+function cz_signature_enregistrer(string $data): string {
+  if (!preg_match('#^data:image/png;base64,([A-Za-z0-9+/=]+)$#', $data, $m) || strlen($m[1]) > 800000) throw new RuntimeException('Signature illisible, recommencez.');
+  $tmp = tempnam(sys_get_temp_dir(), 'sig'); file_put_contents($tmp, base64_decode($m[1])); try { return save_image($tmp, 900)['fichier']; } finally { @unlink($tmp); }
 }

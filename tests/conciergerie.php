@@ -54,7 +54,10 @@ t('total = missions × tarif + ajustements', $x && abs($x['total'] - array_sum(a
 $r = c('paie', null, 'mois=' . date('Y-m')); $cur = $r['json']['personnes'] ?? []; $f = array_values(array_filter($cur, fn($p) => str_starts_with($p['nom'], 'Fatima')))[0] ?? [];
 t('prime comptée dans le mois en cours', count(array_filter($f['ajustements'] ?? [], fn($a) => $a['montant'] == 150)) === 1, json_encode($f['ajustements'] ?? null));
 t('ajustement refusé sur un mois réglé', c('paie_ajust', ['animatrice_id' => $x['id'] ?? 0, 'mois' => $prev, 'libelle' => 'X', 'montant' => 10])['code'] === 400);
-$r = c('paie_regler', ['animatrice_id' => $f['id'] ?? 0, 'mois' => date('Y-m'), 'moyen' => 'especes']); t('paiement du mois enregistré', ($r['json']['ok'] ?? false) && $r['json']['montant'] == $f['total'], $r['body']);
+$png = 'data:image/png;base64,' . base64_encode((function () { $i = imagecreatetruecolor(60, 30); ob_start(); imagepng($i); return ob_get_clean(); })());
+$r = c('paie_regler', ['animatrice_id' => $f['id'] ?? 0, 'mois' => date('Y-m'), 'moyen' => 'especes', 'signature' => $png]); t('paiement du mois enregistré', ($r['json']['ok'] ?? false) && $r['json']['montant'] == $f['total'], $r['body']);
+$g = array_values(array_filter(c('paie', null, 'mois=' . date('Y-m'))['json']['personnes'] ?? [], fn($p) => $p['id'] === ($f['id'] ?? -1)))[0] ?? []; t('signature enregistrée avec le paiement', !empty($g['regle']['signature']) && $g['regle']['signe_ou'] === 'sur place', json_encode($g['regle'] ?? null));
+t('signature illisible refusée', c('paie_regler', ['animatrice_id' => $f['id'] ?? 0, 'mois' => date('Y-m', strtotime('-2 months')), 'signature' => 'data:image/png;base64,xx'])['code'] >= 400);
 t('pas de double paiement', c('paie_regler', ['animatrice_id' => $f['id'] ?? 0, 'mois' => date('Y-m')])['code'] === 400);
 t('mois invalide refusé', c('paie', null, 'mois=2026-13x')['code'] === 400);
 
