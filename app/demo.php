@@ -50,7 +50,7 @@ body{min-height:100vh}
 .dm-g{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
 @media (max-width:860px){.dm-g{grid-template-columns:1fr}}
 .dm-c{background:#fff;border:1px solid var(--line);border-radius:22px;padding:22px;display:flex;flex-direction:column;gap:12px}
-.dm-c.main{background:linear-gradient(in oklch 140deg,var(--terra),var(--pop));color:#fff;border:0}
+.dm-c.main{background:#43515C;color:#fff;border:0}
 .dm-c.main p{color:rgba(255,255,255,.9)}
 .dm-c h2{font-size:22px;color:inherit;margin:0}
 .dm-c p{margin:0;color:var(--muted);font-size:15px}
