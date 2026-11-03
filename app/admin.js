@@ -11,7 +11,7 @@ const ALL_TABS = [["rapports","Comptes rendus"],["client","Rapports d'animation"
 // Maintenance (mises à jour par fichier) : réservée à l'éditeur, qui héberge les conciergeries.
 const ADM_SUBS = [...CZ_SUBS, ["reglages","Réglages"],["admins","Administrateurs"]];
 const KY_RUBRIQUES = [["Aujourd'hui", ["cz_jour"]], ["Séjours", ["cz_planning", "cz_reservations", "cz_missions", "cz_incidents", "cz_avis"]], ["Logements", ["cz_logements", "cz_intendance", "cz_services"]],
-  ["Propriétaires", ["cz_proprietaires", "cz_rapports", "cz_taxe"]], ["Équipe", ["cz_equipe"]], ["Réglages", ["reglages", "admins"]]];
+  ["Propriétaires", ["cz_proprietaires", "cz_rapports", "cz_taxe"]], ["Équipe", ["cz_equipe", "cz_paie"]], ["Réglages", ["reglages", "admins"]]];
 const KY_DERNIERE = {};
 // Onglets rangés dans Administration pour la direction (les autres administrateurs qui y ont droit les gardent dans Reporting).
 const ADM_TABS = ["admins", "animatrices", "documents", "formations", "marques", "magasins"];

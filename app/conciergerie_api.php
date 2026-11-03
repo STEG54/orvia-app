@@ -91,6 +91,31 @@ try {
       else { $v[] = now(); db()->prepare("INSERT INTO c_entretiens (logement_id, titre, frequence_jours, prochaine, heure, animatrice_id, prestataire, consignes, created_at) VALUES (?,?,?,?,?,?,?,?,?)")->execute($v); $id = (int)db()->lastInsertId(); }
       $n = cz_entretiens_generer(); c_out(['ok' => true, 'id' => $id, 'missions_creees' => $n]);
 
+    case 'paie':
+      c_admin('tout'); try { c_out(cz_paie_mois((string)($_GET['mois'] ?? date('Y-m')))); } catch (RuntimeException $e) { c_fail($e->getMessage()); }
+
+    case 'paie_tarifs':
+      c_admin('tout'); cz_paie_tarifs_save($in); c_out(['ok' => true, 'tarifs' => cz_paie_tarifs()]);
+
+    case 'paie_ajust':
+      c_admin('tout'); $aid = (int)($in['animatrice_id'] ?? 0); $mois = (string)($in['mois'] ?? ''); if (!preg_match('/^\d{4}-\d{2}$/', $mois)) c_fail('Mois invalide.');
+      $st = db()->prepare("SELECT COUNT(*) FROM c_paie_reglements WHERE animatrice_id = ? AND mois = ?"); $st->execute([$aid, $mois]); if ((int)$st->fetchColumn()) c_fail('Ce mois est déjà réglé : annulez d\'abord le règlement.');
+      if (!empty($in['supprimer'])) { db()->prepare("DELETE FROM c_paie_ajust WHERE id = ? AND animatrice_id = ? AND mois = ?")->execute([(int)$in['id'], $aid, $mois]); c_out(['ok' => true]); }
+      $lib = clip($in['libelle'] ?? '', 160); $mt = round((float)str_replace([',', ' '], ['.', ''], (string)($in['montant'] ?? 0)), 2);
+      if ($lib === '' || $mt == 0) c_fail('Indiquez un libellé et un montant (négatif pour une avance ou une retenue).');
+      db()->prepare("INSERT INTO c_paie_ajust (animatrice_id, mois, libelle, montant, par, created_at) VALUES (?,?,?,?,?,?)")->execute([$aid, $mois, $lib, $mt, admin_nom(), now()]); c_out(['ok' => true]);
+
+    case 'paie_regler':
+      c_admin('tout'); $aid = (int)($in['animatrice_id'] ?? 0); $mois = (string)($in['mois'] ?? '');
+      try { $P = cz_paie_mois($mois); } catch (RuntimeException $e) { c_fail($e->getMessage()); }
+      $p = array_values(array_filter($P['personnes'], fn($x) => $x['id'] === $aid))[0] ?? c_fail('Rien à régler pour cette personne ce mois-ci.', 404);
+      if (!empty($in['annuler'])) { db()->prepare("DELETE FROM c_paie_reglements WHERE animatrice_id = ? AND mois = ?")->execute([$aid, $mois]); journal('paiement annulé', $p['nom'] . ' ' . $mois); c_out(['ok' => true]); }
+      if ($p['total'] <= 0) c_fail('Rien à verser ce mois-ci.');
+      if ($p['regle']) c_fail('Déjà réglé le ' . date('d/m/Y', strtotime($p['regle']['le'])) . '.');
+      $moyen = in_array($in['moyen'] ?? '', ['especes', 'virement', 'autre'], true) ? $in['moyen'] : 'especes';
+      db()->prepare("INSERT INTO c_paie_reglements (animatrice_id, mois, montant, moyen, detail, regle_at, par) VALUES (?,?,?,?,?,?,?)")->execute([$aid, $mois, $p['total'], $moyen, json_encode($p, JSON_UNESCAPED_UNICODE), now(), admin_nom()]);
+      journal('paiement équipe', $p['nom'] . ' ' . $mois . ' ' . $p['total'] . ' DH'); c_out(['ok' => true, 'montant' => $p['total']]);
+
     case 'taxe_sejour':
       c_admin(); c_out(cz_taxe_sejour(c_date($_GET['from'] ?? ''), c_date($_GET['to'] ?? '')) + ['agence' => AG_NOM]);
 
@@ -417,7 +442,8 @@ try {
       $out = array_map(function ($m) { $etat = cz_etat($m); $P = cz_checklist($m); $ok = 0; $ph = null;
         foreach ($P as $i => $_) { if (!empty($etat[$i]['ok'])) $ok++; if (!$ph && !empty($etat[$i]['photos'][0])) $ph = photo_url($etat[$i]['photos'][0], true); }
         unset($m['etat'], $m['checklist'], $m['logement_id']); return $m + ['pieces' => count($P), 'pieces_ok' => $ok, 'vignette' => $ph]; }, $st->fetchAll());
-      c_out(['missions' => $out, 'aujourdhui' => $j]);
+      $mp = null; try { $T = cz_paie_tarifs(); if (array_sum($T['types']) > 0) { foreach (cz_paie_mois(date('Y-m'))['personnes'] as $x) if ($x['id'] === $aid) $mp = ['missions' => count($x['missions']), 'total' => $x['total'], 'regle' => (bool)$x['regle']]; $mp = $mp ?? ['missions' => 0, 'total' => 0, 'regle' => false]; } } catch (Throwable $e) {}
+      c_out(['missions' => $out, 'aujourdhui' => $j, 'mois' => $mp]);
 
     case 'ma_mission':
       $m = c_mission_acces((int)($_GET['id'] ?? 0)); $etat = cz_etat($m); $P = [];

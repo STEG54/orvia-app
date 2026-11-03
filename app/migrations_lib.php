@@ -15,6 +15,7 @@ const MIGRATIONS = [
   7 => 'ORVIA : questions des voyageurs et réponses de l\'assistant',
   8 => 'Keylia : messages, rapports et devis échangés avec les propriétaires',
   9 => 'Keylia : linge (articles, kits, blanchisserie) et entretiens programmés',
+  10 => 'Keylia : paiement de l\'équipe (ajustements et règlements mensuels)',
 ];
 
 function mig_derniere(): int { return (int)array_key_last(MIGRATIONS); }
@@ -153,4 +154,12 @@ function mig_9(PDO $pdo): void {
     derniere_mission_id INT UNSIGNED DEFAULT NULL, created_at DATETIME NOT NULL, KEY logement_id (logement_id), KEY prochaine (prochaine)) $E");
   $st = $pdo->prepare("SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = 'entretien_id'"); $st->execute([$p . 'c_missions']);
   if (!(int)$st->fetchColumn()) $pdo->exec("ALTER TABLE `{$p}c_missions` ADD COLUMN entretien_id INT UNSIGNED DEFAULT NULL");
+}
+
+function mig_10(PDO $pdo): void {
+  $p = function_exists('demo_prefixe') ? demo_prefixe() : ''; $E = 'ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci';
+  $pdo->exec("CREATE TABLE IF NOT EXISTS `{$p}c_paie_ajust` (id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY, animatrice_id INT UNSIGNED NOT NULL, mois CHAR(7) NOT NULL, libelle VARCHAR(160) NOT NULL, montant DECIMAL(10,2) NOT NULL,
+    par VARCHAR(120) NOT NULL DEFAULT '', created_at DATETIME NOT NULL, KEY am (animatrice_id, mois)) $E");
+  $pdo->exec("CREATE TABLE IF NOT EXISTS `{$p}c_paie_reglements` (animatrice_id INT UNSIGNED NOT NULL, mois CHAR(7) NOT NULL, montant DECIMAL(10,2) NOT NULL, moyen VARCHAR(20) NOT NULL DEFAULT '', detail MEDIUMTEXT NULL,
+    regle_at DATETIME NOT NULL, par VARCHAR(120) NOT NULL DEFAULT '', PRIMARY KEY (animatrice_id, mois)) $E");
 }

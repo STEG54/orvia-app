@@ -425,7 +425,7 @@ function cz_cron(): void {
 /* ---------- Livret d'arrivée ---------- */
 // Au Maroc l'adresse ne suffit pas : le logement a une position fixée (lien Google Maps ou position prise sur place),
 // un repère, des étapes en photos (rue, entrée, porte, boîte à clés) et ses codes. Le chemin se montre tôt, les codes au dernier moment.
-const CZ_LIVRET_CHAMPS = ['repere' => 300, 'parking' => 300, 'serrure' => 300, 'wifi_nom' => 60, 'wifi_mdp' => 60, 'depart' => 600, 'urgence' => 60];
+const CZ_LIVRET_CHAMPS = ['repere' => 300, 'parking' => 300, 'serrure' => 600, 'wifi_nom' => 60, 'wifi_mdp' => 60, 'depart' => 600, 'urgence' => 60, 'regles' => 1200];
 /** Coordonnées lues dans « 31.6295, -7.9811 » ou dans un lien Google Maps / Waze complet. Lien raccourci : null (il faut l'ouvrir puis copier l'adresse longue). */
 function cz_parse_position(string $s): ?array {
   $s = trim(rawurldecode($s));
@@ -454,7 +454,7 @@ function cz_liens_carte($lat, $lng): array {
 function cz_livret(array $l, bool $codes, int $jours = 3): array {
   $b = cz_livret_brut($l);
   $o = ['adresse' => (string)($l['adresse'] ?? ''), 'ville' => (string)($l['ville'] ?? ''), 'carte' => cz_liens_carte($l['lat'] ?? null, $l['lng'] ?? null),
-    'repere' => $b['repere'], 'parking' => $b['parking'], 'wifi_nom' => $b['wifi_nom'], 'urgence' => $b['urgence'],
+    'repere' => $b['repere'], 'parking' => $b['parking'], 'wifi_nom' => $b['wifi_nom'], 'urgence' => $b['urgence'], 'regles' => $b['regles'],
     'etapes' => array_map(fn($e) => ['texte' => $e['texte'], 'photo' => $e['photo'] !== '' ? photo_lien($e['photo'], $jours) : ''], $b['etapes']), 'codes' => $codes];
   if ($codes) $o += ['code' => cz_dec($l['code_enc'] ?? ''), 'acces' => cz_dec($l['acces_enc'] ?? ''), 'serrure' => $b['serrure'], 'wifi_mdp' => $b['wifi_mdp'], 'depart_consignes' => $b['depart']];
   return $o;
@@ -492,7 +492,7 @@ function cz_ia_contexte(array $r): string {
   $S = array_map(fn($s) => $s['nom'] . ' : ' . (float)$s['prix'] . ' DH (à commander ' . (int)$s['delai_h'] . ' h avant l\'arrivée, depuis cette page)', cz_services());
   $L = ['Conciergerie : ' . AG_NOM, 'Logement : ' . ($l['nom'] ?? '') . ', ' . trim(($l['adresse'] ?? '') . ' ' . ($l['ville'] ?? '')),
     'Séjour : arrivée le ' . $r['arrivee'] . ' (à partir de ' . reglage('cz_heure_arrivee', '15:00') . '), départ le ' . $r['depart'] . ' (avant ' . reglage('cz_heure_depart', '11:00') . ')',
-    'Repère : ' . ($b['repere'] ?: 'non renseigné'), 'Stationnement : ' . ($b['parking'] ?: 'non renseigné'), 'Nom du réseau Wi-Fi : ' . ($b['wifi_nom'] ?: 'non renseigné'),
+    'Repère : ' . ($b['repere'] ?: 'non renseigné'), 'Stationnement : ' . ($b['parking'] ?: 'non renseigné'), 'Règles de la maison : ' . ($b['regles'] ?: 'non renseignées'), 'Nom du réseau Wi-Fi : ' . ($b['wifi_nom'] ?: 'non renseigné'),
     'Consignes de départ : ' . ($b['depart'] ?: 'non renseignées'), 'Étapes pour arriver : ' . (implode(' / ', array_filter(array_column($b['etapes'], 'texte'))) ?: 'non renseignées'),
     'Services à l\'arrivée : ' . ($S ? implode(' ; ', $S) : 'aucun'), 'Itinéraire, photos de l\'entrée, code d\'accès et mot de passe Wi-Fi : affichés sur la page du voyageur (le code et le mot de passe le jour de l\'arrivée, une fois le logement prêt).'];
   return implode("\n", $L);
@@ -777,3 +777,37 @@ function cz_entretiens_liste(): array {
 }
 /** Kit de linge d'un logement, pour l'intervenant : [[nom, quantité]…]. */
 function cz_kit_logement(int $lid): array { try { $st = db()->prepare("SELECT a.nom, k.qte FROM c_linge_kits k JOIN c_linge_articles a ON a.id = k.article_id WHERE k.logement_id = ? AND k.qte > 0 AND a.actif = 1 ORDER BY a.ordre, a.nom"); $st->execute([$lid]); return array_map(fn($r) => [$r['nom'], (int)$r['qte']], $st->fetchAll()); } catch (Throwable $e) { return []; } }
+
+/* ---------- Paiement de l'équipe ----------
+   Un tarif par type de mission, et pour le ménage un tarif par logement si besoin (une villa ne se paie pas comme un studio).
+   Le relevé du mois = missions faites × tarif + ajustements (prime, avance). Une fois réglé, le montant est figé. */
+function cz_paie_tarifs(): array {
+  $r = json_decode(reglage('cz_tarifs_equipe', ''), true); $r = is_array($r) ? $r : [];
+  $T = []; foreach (CZ_MISSION_TYPES as $k => $_) $T[$k] = (float)($r['types'][$k] ?? 0);
+  $L = []; foreach ((array)($r['logements'] ?? []) as $lid => $v) if ((float)$v > 0) $L[(int)$lid] = (float)$v;
+  return ['types' => $T, 'logements' => $L];
+}
+function cz_paie_tarifs_save(array $in): void {
+  $T = []; foreach (CZ_MISSION_TYPES as $k => $_) $T[$k] = max(0, round((float)str_replace(',', '.', (string)($in['types'][$k] ?? 0)), 2));
+  $L = []; foreach ((array)($in['logements'] ?? []) as $lid => $v) { $v = round((float)str_replace(',', '.', (string)$v), 2); if ($v > 0) $L[(int)$lid] = $v; }
+  reglage_set('cz_tarifs_equipe', json_encode(['types' => $T, 'logements' => (object)$L]));
+}
+function cz_paie_mois(string $mois): array {
+  if (!preg_match('/^\d{4}-\d{2}$/', $mois)) throw new RuntimeException('Mois invalide.');
+  $T = cz_paie_tarifs(); $from = $mois . '-01'; $to = date('Y-m-t', strtotime($from));
+  $st = db()->prepare("SELECT m.id, m.animatrice_id, m.type, m.date, m.logement_id, l.nom logement FROM c_missions m JOIN c_logements l ON l.id = m.logement_id WHERE m.statut = 'faite' AND m.animatrice_id IS NOT NULL AND m.date BETWEEN ? AND ? ORDER BY m.date, m.id");
+  $st->execute([$from, $to]); $M = [];
+  foreach ($st->fetchAll() as $m) { $px = $m['type'] === 'menage' && isset($T['logements'][(int)$m['logement_id']]) ? $T['logements'][(int)$m['logement_id']] : ($T['types'][$m['type']] ?? 0);
+    $M[(int)$m['animatrice_id']][] = ['id' => (int)$m['id'], 'date' => $m['date'], 'type' => $m['type'], 'logement' => $m['logement'], 'montant' => $px]; }
+  $st = db()->prepare("SELECT * FROM c_paie_ajust WHERE mois = ? ORDER BY id"); $st->execute([$mois]); $AJ = []; foreach ($st->fetchAll() as $a) $AJ[(int)$a['animatrice_id']][] = $a;
+  $st = db()->prepare("SELECT * FROM c_paie_reglements WHERE mois = ?"); $st->execute([$mois]); $RG = []; foreach ($st->fetchAll() as $r) $RG[(int)$r['animatrice_id']] = $r;
+  $out = [];
+  foreach (db()->query("SELECT id, prenom, nom, telephone, actif FROM animatrices ORDER BY prenom, nom")->fetchAll() as $a) { $i = (int)$a['id'];
+    if (!isset($M[$i]) && !isset($AJ[$i]) && !isset($RG[$i])) continue;
+    $mis = $M[$i] ?? []; $aj = array_map(fn($x) => ['id' => (int)$x['id'], 'libelle' => $x['libelle'], 'montant' => (float)$x['montant']], $AJ[$i] ?? []);
+    $tot = round(array_sum(array_column($mis, 'montant')) + array_sum(array_column($aj, 'montant')), 2); $r = $RG[$i] ?? null;
+    $parType = []; foreach ($mis as $x) { $parType[$x['type']] = $parType[$x['type']] ?? ['n' => 0, 'montant' => 0]; $parType[$x['type']]['n']++; $parType[$x['type']]['montant'] += $x['montant']; }
+    $out[] = ['id' => $i, 'nom' => trim($a['prenom'] . ' ' . $a['nom']), 'telephone' => $a['telephone'], 'missions' => $mis, 'par_type' => $parType, 'ajustements' => $aj, 'total' => $tot,
+      'sans_tarif' => count(array_filter($mis, fn($x) => $x['montant'] <= 0)), 'regle' => $r ? ['montant' => (float)$r['montant'], 'moyen' => $r['moyen'], 'le' => $r['regle_at'], 'par' => $r['par']] : null]; }
+  return ['mois' => $mois, 'tarifs' => $T, 'personnes' => $out, 'total' => round(array_sum(array_column($out, 'total')), 2), 'reste' => round(array_sum(array_map(fn($p) => $p['regle'] ? 0 : $p['total'], $out)), 2)];
+}

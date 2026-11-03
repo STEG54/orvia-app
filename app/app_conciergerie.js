@@ -55,6 +55,7 @@ async function czHome(){
   const pc = next && next.pieces ? Math.round(100 * next.pieces_ok / next.pieces) : 0;
   $("#view").innerHTML = `<div class="kt-hero"><div class="k1">${AG}</div><div class="k2">${czt("bonjour")} ${esc(S.me.prenom)}</div>
       <div class="k3">${dujour.length ? `${czt("auj")}, <b>${dujour.length} ${czt(dujour.length > 1 ? "nmissions" : "nmission")}</b>${prem ? `, ${czt("premiere")} ${esc(prem.heure)}` : ""}` : czt("rien")}</div>
+      ${CZA.M.mois ? `<div class="k4">${esc(new Date().toLocaleDateString(CZL === "ar" ? "ar-MA" : "fr-FR", {month:"long"}))} : ${CZA.M.mois.missions} ${czt(CZA.M.mois.missions > 1 ? "nmissions" : "nmission")} · <b>${(+CZA.M.mois.total).toLocaleString("fr-FR")} DH</b>${CZA.M.mois.regle ? " ✓" : ""}</div>` : ""}
       <button class="kt-lang" id="czl">${czt("langue")}</button></div>
     ${next ? `<button class="kt-next" data-m="${next.id}"><span class="mt"><b>${esc(next.heure || "–")}</b><span class="chip" style="--c:${CZ_TYPE_C[next.type] || "#5A5F5B"}">${esc(czt(next.type))}</span></span>
       <span class="nm">${esc(next.logement)}</span><small>${next.date === auj ? czt("auj") : esc(czaD(next.date))}${next.ville ? " · " + esc(next.ville) : ""}</small>

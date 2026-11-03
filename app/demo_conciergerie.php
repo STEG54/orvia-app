@@ -167,4 +167,12 @@ function cz_demo_seed(): void {
   $ient->execute([$LID[1], 'Désinsectisation', 90, demo_j(40), '11:00', null, 'Hygiène Services Maroc', 'Patio et cuisine', $now]);
   $ient->execute([$LID[2], 'Détartrage du chauffe-eau', 365, demo_j(120), '10:00', $E[1], '', '', $now]);
   cz_entretiens_generer();
+  // Paiement de l'équipe : tarifs par mission (ménage selon le logement), mois précédent réglé, une prime et une avance ce mois-ci.
+  mig_10($pdo); cz_paie_tarifs_save(['types' => ['menage' => 120, 'controle' => 60, 'maintenance' => 100, 'accueil' => 80, 'visite' => 60, 'transfert' => 80, 'autre' => 60],
+    'logements' => [$LID[0] => 250, $LID[1] => 160, $LID[3] => 220]]);
+  $prev = date('Y-m', strtotime('first day of last month'));
+  foreach (cz_paie_mois($prev)['personnes'] as $x) $pdo->prepare("INSERT INTO c_paie_reglements (animatrice_id, mois, montant, moyen, detail, regle_at, par) VALUES (?,?,?,?,?,?,?)")
+    ->execute([$x['id'], $prev, $x['total'], $x['id'] === $E[1] ? 'virement' : 'especes', json_encode($x, JSON_UNESCAPED_UNICODE), date('Y-m-02') . ' 18:00:00', $dir]);
+  $iaj = $pdo->prepare("INSERT INTO c_paie_ajust (animatrice_id, mois, libelle, montant, par, created_at) VALUES (?,?,?,?,?,?)");
+  $iaj->execute([$E[0], date('Y-m'), 'Prime : propreté notée 5/5 tout le mois dernier', 150, $dir, $now]); $iaj->execute([$E[1], date('Y-m'), 'Avance sur salaire', -300, $dir, $now]);
 }

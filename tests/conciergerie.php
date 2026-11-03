@@ -46,6 +46,17 @@ $aid = array_key_first($envoi['lignes'] ?? []); $r = c('linge_retour', ['id' => 
 t('retour de blanchisserie : la pièce manquante est notée', ($r['json']['ok'] ?? false) && array_sum($r['json']['pertes'] ?? []) === 1 && ($r['json']['cout'] ?? 0) > 0, $r['body']);
 $r = c('entretien_save', ['logement_id' => 0, 'titre' => 'X', 'prochaine' => date('Y-m-d')]); t('entretien sans logement refusé', $r['code'] === 400);
 
+echo "Paiement de l'équipe\n";
+$prev = date('Y-m', strtotime('first day of last month')); $r = c('paie', null, "mois=$prev"); $P = $r['json'] ?? [];
+t('relevé du mois précédent, réglé', $r['code'] === 200 && count($P['personnes'] ?? []) >= 2 && $P['reste'] == 0 && $P['total'] > 0, substr($r['body'], 0, 300));
+$x = $P['personnes'][0] ?? []; t('total = missions × tarif + ajustements', $x && abs($x['total'] - array_sum(array_column($x['missions'], 'montant')) - array_sum(array_column($x['ajustements'], 'montant'))) < .01, json_encode($x['par_type'] ?? null));
+$r = c('paie', null, 'mois=' . date('Y-m')); $cur = $r['json']['personnes'] ?? []; $f = array_values(array_filter($cur, fn($p) => str_starts_with($p['nom'], 'Fatima')))[0] ?? [];
+t('prime comptée dans le mois en cours', count(array_filter($f['ajustements'] ?? [], fn($a) => $a['montant'] == 150)) === 1, json_encode($f['ajustements'] ?? null));
+t('ajustement refusé sur un mois réglé', c('paie_ajust', ['animatrice_id' => $x['id'] ?? 0, 'mois' => $prev, 'libelle' => 'X', 'montant' => 10])['code'] === 400);
+$r = c('paie_regler', ['animatrice_id' => $f['id'] ?? 0, 'mois' => date('Y-m'), 'moyen' => 'especes']); t('paiement du mois enregistré', ($r['json']['ok'] ?? false) && $r['json']['montant'] == $f['total'], $r['body']);
+t('pas de double paiement', c('paie_regler', ['animatrice_id' => $f['id'] ?? 0, 'mois' => date('Y-m')])['code'] === 400);
+t('mois invalide refusé', c('paie', null, 'mois=2026-13x')['code'] === 400);
+
 echo "Équipe terrain\n";
 $r = c('equipe'); t('liste de l\'équipe avec activité et invitation WhatsApp', $r['code'] === 200 && count($r['json']['equipe'] ?? []) >= 3 && str_starts_with($r['json']['equipe'][0]['wa'] ?? '', 'https://wa.me/'), substr($r['body'], 0, 300));
 $r = c('equipe_save', ['prenom' => 'Salma', 'nom' => 'Idrissi', 'telephone' => '+212 6 61 22 33 44', 'ville' => 'Marrakech']); $qid = (int)($r['json']['id'] ?? 0); t('personne ajoutée à l\'équipe', $qid > 0, $r['body']);

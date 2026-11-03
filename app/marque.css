@@ -154,3 +154,4 @@ body:has(.demo-ruban) #view{padding-bottom:96px}
 .wz-type b{font-family:var(--serif);font-weight:400;font-size:19px;color:var(--vert)}.wz-type span{font-size:13px;color:var(--muted)}.wz-type small{font-size:12px;color:#9A6B1A}
 .wz-type.on{border-color:var(--vert);box-shadow:inset 0 0 0 1px var(--vert);background:#F7F8F9}
 .wz-ok{width:52px;height:52px;border-radius:50%;background:var(--ok);color:#fff;display:grid;place-items:center;font-size:26px}
+.kt-hero .k4{font-size:14px;color:#C9D0D5;margin-top:2px}.kt-hero .k4 b{color:var(--laiton)}
