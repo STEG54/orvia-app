@@ -48,8 +48,9 @@ $r = c('entretien_save', ['logement_id' => 0, 'titre' => 'X', 'prochaine' => dat
 
 echo "Paiement de l'équipe\n";
 $prev = date('Y-m', strtotime('first day of last month')); $r = c('paie', null, "mois=$prev"); $P = $r['json'] ?? [];
-t('relevé du mois précédent, réglé', $r['code'] === 200 && count($P['personnes'] ?? []) >= 2 && $P['reste'] == 0 && $P['total'] > 0, substr($r['body'], 0, 300));
-$x = $P['personnes'][0] ?? []; t('total = missions × tarif + ajustements', $x && abs($x['total'] - array_sum(array_column($x['missions'], 'montant')) - array_sum(array_column($x['ajustements'], 'montant'))) < .01, json_encode($x['par_type'] ?? null));
+t('relevé du mois précédent, en partie réglé', $r['code'] === 200 && count($P['personnes'] ?? []) >= 2 && $P['reste'] > 0 && $P['reste'] < $P['total'], substr($r['body'], 0, 300));
+$x = array_values(array_filter($P['personnes'], fn($p) => $p['regle']))[0] ?? [];
+t('total = missions × tarif + ajustements', $x && abs($x['total'] - array_sum(array_column($x['missions'], 'montant')) - array_sum(array_column($x['ajustements'], 'montant'))) < .01, json_encode($x['par_type'] ?? null));
 $r = c('paie', null, 'mois=' . date('Y-m')); $cur = $r['json']['personnes'] ?? []; $f = array_values(array_filter($cur, fn($p) => str_starts_with($p['nom'], 'Fatima')))[0] ?? [];
 t('prime comptée dans le mois en cours', count(array_filter($f['ajustements'] ?? [], fn($a) => $a['montant'] == 150)) === 1, json_encode($f['ajustements'] ?? null));
 t('ajustement refusé sur un mois réglé', c('paie_ajust', ['animatrice_id' => $x['id'] ?? 0, 'mois' => $prev, 'libelle' => 'X', 'montant' => 10])['code'] === 400);
